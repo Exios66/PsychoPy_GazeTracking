@@ -14,18 +14,21 @@ A comprehensive interface for eye tracking experiments using PsychoPy, with supp
 ## Installation
 
 1. Clone this repository:
+
    ```
    git clone https://github.com/yourusername/PsychoPy_GazeTracking.git
    cd PsychoPy_GazeTracking
    ```
 
 2. Create a virtual environment (recommended):
+
    ```
    python -m venv venv
    source venv/bin/activate  # On Windows: venv\Scripts\activate
    ```
 
 3. Install the required dependencies:
+
    ```
    pip install flask flask-cors psychopy numpy matplotlib opencv-python
    ```
@@ -42,7 +45,7 @@ This mode provides a web interface with simulated data, useful for development a
 python minimal_app.py
 ```
 
-The web interface will be available at http://127.0.0.1:5000 (or another port if 5000 is not available).
+The web interface will be available at <http://127.0.0.1:5000> (or another port if 5000 is not available).
 
 ### 2. Full Application (Requires PsychoPy)
 
@@ -59,6 +62,7 @@ python run_app.py --tracker simulated --port 5001 --no-browser
 ```
 
 Available options:
+
 - `--tracker`: Specify the tracker type (webcam, tobii, mouse, simulated)
 - `--port`: Specify the port for the web interface
 - `--host`: Specify the host for the web interface
@@ -105,6 +109,6 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 ## Acknowledgements
 
-- PsychoPy: https://www.psychopy.org/
-- Flask: https://flask.palletsprojects.com/
-- OpenCV: https://opencv.org/
+- PsychoPy: <https://www.psychopy.org/>
+- Flask: <https://flask.palletsprojects.com/>
+- OpenCV: <https://opencv.org/>
