@@ -1,113 +1,145 @@
-"""
-Mock PsychoPy module for development and testing.
-This module provides mock implementations of PsychoPy classes and functions
-to allow code to be developed and tested without requiring the full PsychoPy package.
-"""
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
 
-# Import the mock psychopy package
-from . import psychopy
+# Part of the PsychoPy library
+# Copyright (C) 2002-2018 Jonathan Peirce (C) 2019-2024 Open Science Tools Ltd.
+# Distributed under the terms of the GNU General Public License (GPL).
 
-# Import tobii_research as a proper module
-from . import tobii_research
+import os
+import sys
+import pathlib
 
-from ._mock_base import _MockModule, _MockClass
 
-# Create core module
-core = _MockModule(
-    getTime=lambda: 0.0,
-    wait=lambda x: None,
-    Clock=_MockClass,
-    CountdownTimer=_MockClass,
-    StaticPeriod=_MockClass,
-)
+def getVersion():
+    return (pathlib.Path(__file__).parent/"VERSION").read_text(encoding="utf-8").strip()
 
-# Create visual module
-visual = _MockModule(
-    Window=_MockClass,
-    TextStim=_MockClass,
-    ImageStim=_MockClass,
-    GratingStim=_MockClass,
-    ShapeStim=_MockClass,
-    Rect=_MockClass,
-    Circle=_MockClass,
-    Line=_MockClass,
-)
+__version__ = getVersion()
+__git_sha__ = (pathlib.Path(__file__).parent/"GIT_SHA").read_text(encoding="utf-8").strip()
+__license__ = 'GPL v3'
+__author__ = 'Open Science Tools Ltd'
+__author_email__ = 'support@opensciencetools.org'
+__maintainer_email__ = 'support@opensciencetools.org'
+__url__ = 'https://www.psychopy.org/'
+__download_url__ = 'https://github.com/psychopy/psychopy/releases/'
+__build_platform__ = 'n/a'
 
-# Create event module
-event = _MockModule(
-    getKeys=lambda keyList=None: [],
-    waitKeys=lambda keyList=None: [],
-    Mouse=_MockClass,
-    clearEvents=lambda: None,
-)
+__all__ = ["gui", "misc", "visual", "core",
+           "event", "data", "sound", "microphone"]
 
-# Create iohub module
-iohub = _MockModule(
-    launchHubServer=lambda **kwargs: _MockModule(
-        devices=_MockModule(
-            eyetracker=None,
-            mouse=_MockClass(),
-        ),
-        quit=lambda: None,
-    ),
-)
+# for developers the following allows access to the current git sha from
+# their repository
+if __git_sha__ == 'n/a':
+    from subprocess import check_output, PIPE
+    # see if we're in a git repo and fetch from there
+    try:
+        thisFileLoc = os.path.split(__file__)[0]
+        output = check_output(['git', 'rev-parse', '--short', 'HEAD'],
+                              cwd=thisFileLoc, stderr=PIPE)
+    except Exception:
+        output = False
+    if output:
+        __git_sha__ = output.strip()  # remove final linefeed
 
-# Create data module
-data = _MockModule(
-    ExperimentHandler=_MockClass,
-    TrialHandler=_MockClass,
-    MultiStairHandler=_MockClass,
-)
+# update preferences and the user paths
+if 'installing' not in locals():
+    from psychopy.preferences import prefs
+    import site
 
-# Create sound module
-sound = _MockModule(
-    Sound=_MockClass,
-)
+    # Configure the environment to use our custom site-packages location for
+    # user-installed packages. In the future, this will be configured outside of
+    # the running environment, but for now, we need to do it here.
+    useDefaultSite = False
+    if 'PSYCHOPYNOPACKAGES' in os.environ:
+        # Custom environment variable for people using PsychoPy as a library,
+        # who don't want to use the custom site-packages location. If set to 1,
+        # this will disable the custom site-packages location. Packages will be
+        # installed in the default, system dependent user's site-packages
+        # location.
+        useDefaultSite = os.environ['PSYCHOPYNOPACKAGES'] == '1'
 
-# Create monitors module
-monitors = _MockModule(
-    Monitor=_MockClass,
-)
+    # configure environment for custom site-packages location
+    if not useDefaultSite:
+        env = os.environ.copy()
+        if 'PYTHONPATH' in env:  # append entries to existing PYTHONPATH
+            _userSitePackages = str(prefs.paths['userPackages'])
+            if _userSitePackages not in env['PYTHONPATH']:
+                env['PYTHONPATH'] = os.pathsep.join([
+                    env['PYTHONPATH'], _userSitePackages])
+            _userPackages = str(prefs.paths['packages'])
+            if _userPackages not in env['PYTHONPATH']:
+                env['PYTHONPATH'] = os.pathsep.join([
+                    env['PYTHONPATH'], _userPackages]) 
+        else:
+            env['PYTHONPATH'] = os.pathsep.join([
+                str(prefs.paths['userPackages']), 
+                str(prefs.paths['packages'])])
 
-# Create logging module
-logging = _MockModule(
-    console=_MockClass(),
-    flush=lambda: None,
-    LogFile=_MockClass,
-    WARNING=1,
-    DATA=2,
-    EXP=3,
-    INFO=4,
-    DEBUG=5,
-)
+        # set user site packages
+        env['PYTHONUSERBASE'] = prefs.paths['packages']
 
-# Create hardware module
-hardware = _MockModule(
-    keyboard=_MockModule(
-        Keyboard=_MockClass,
-        KeyPress=_MockClass,
-        getKeys=lambda *args, **kwargs: [],
-    ),
-)
+        # set environment variable for pip to get egg-info of installed packages
+        if sys.platform == 'darwin':
+            # python 3.8 cannot parse the egg-info of zip-packaged dists
+            # correctly, so pip install will always install extra copies
+            # of dependencies. On python 3.10, we can force importlib to
+            # avoid this issue, but we need to use an environment variable
+            if sys.version_info >= (3, 10):
+                env['_PIP_USE_IMPORTLIB_METADATA'] = 'True'
 
-# Create gui module
-gui = _MockModule(
-    Dlg=_MockClass,
-    DlgFromDict=_MockClass,
-)
+        # update environment, pass this to sub-processes (e.g. pip)
+        os.environ.update(env)
 
-# Create mock pylink module for EyeLink
-pylink = _MockModule(
-    EyeLink=lambda: _MockModule(
-        isConnected=lambda: True,
-        sendCommand=lambda cmd: None,
-        openDataFile=lambda filename: None,
-        setLinkEventFilter=lambda filter_str: None,
-        setLinkSampleFilter=lambda filter_str: None,
-        startRecording=lambda a, b, c, d: None,
-        stopRecording=lambda: None,
-        close=lambda: None,
-        doTrackerSetup=lambda: None,
-    ),
-    CALIBRATION_STATUS_SUCCESS=1,
-) 
+        # make sure site knows about our custom user site-packages
+        site.USER_SITE = prefs.paths['userPackages']
+        site.ENABLE_USER_SITE = True
+        # site.main()
+
+        # add paths from main plugins/packages (installed by plugins manager)
+        site.addsitedir(prefs.paths['userPackages'])  # user site-packages
+        site.addsitedir(prefs.paths['userInclude'])  # user include
+        site.addsitedir(prefs.paths['packages'])  # base package dir
+
+        _envPath = os.environ.get('PATH', None)
+        if _envPath is not None:
+            # add user include path to system PATH (for C extensions)
+            if str(prefs.paths['userInclude']) not in _envPath:
+                os.environ['PATH'] = os.pathsep.join([
+                    os.environ['PATH'], str(prefs.paths['userInclude'])])
+            # add scripts path for user packages to system PATH
+            if str(prefs.paths['userScripts']) not in _envPath:
+                os.environ['PATH'] = os.pathsep.join([
+                    os.environ['PATH'], str(prefs.paths['userScripts'])])
+
+        if sys.platform == 'darwin' and sys._framework:
+            # add scripts path for user packages to system PATH
+            fwBinPath = os.path.join(sys.prefix, 'bin')
+            if fwBinPath not in os.environ['PATH']:
+                os.environ['PATH'] = os.pathsep.join([
+                    fwBinPath, os.environ['PATH']])
+    
+    # add paths from general preferences
+    for _pathName in prefs.general['paths']:
+        sys.path.append(_pathName)
+    
+    # Add paths from individual plugins/packages (installed by plugins manager),
+    # this is to support legacy plugins that don't use the customized user 
+    # site-packages location. This will be removed in the future.
+    import pathlib as _pathlib
+    for _pathName in _pathlib.Path(prefs.paths['packages']).glob("*"):
+        if _pathName.is_dir():
+            sys.path.append(str(_pathName))
+
+    from psychopy.tools.versionchooser import useVersion, ensureMinimal
+
+
+if sys.version_info.major < 3:
+    raise ImportError("psychopy does not support Python2 installations. "
+                      "The last version to support Python2.7 was PsychoPy "
+                      "2021.2.x")
+
+# import readline here to get around an issue with sounddevice
+# issues GH-2230 GH-2344 GH-2662
+try:
+    import readline
+except ImportError:
+    pass  # all that will happen is the stderr/stdout might get redirected

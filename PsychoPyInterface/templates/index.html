@@ -1,0 +1,638 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PsychoPy GazeTracking Interface</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            padding-top: 20px;
+            background-color: #f8f9fa;
+        }
+        .card {
+            margin-bottom: 20px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        .card-header {
+            background-color: #6c757d;
+            color: white;
+            font-weight: bold;
+        }
+        .btn-primary {
+            background-color: #007bff;
+        }
+        .btn-success {
+            background-color: #28a745;
+        }
+        .btn-danger {
+            background-color: #dc3545;
+        }
+        .status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 5px;
+        }
+        .status-available {
+            background-color: #28a745;
+        }
+        .status-unavailable {
+            background-color: #dc3545;
+        }
+        #calibration-visualization {
+            max-width: 100%;
+            height: auto;
+        }
+        .gaze-point {
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background-color: rgba(255, 0, 0, 0.5);
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header class="mb-4">
+            <h1 class="text-center">PsychoPy GazeTracking Interface</h1>
+            <p class="text-center text-muted">Control panel for eye tracking experiments</p>
+        </header>
+
+        <div class="row">
+            <!-- System Status -->
+            <div class="col-md-4">
+                <div class="card">
+                    <div class="card-header">System Status</div>
+                    <div class="card-body">
+                        <ul class="list-group list-group-flush" id="status-list">
+                            <li class="list-group-item d-flex justify-content-between align-items-center">
+                                PsychoPy
+                                <span class="status-indicator" id="psychopy-status"></span>
+                            </li>
+                            <li class="list-group-item d-flex justify-content-between align-items-center">
+                                OpenCV
+                                <span class="status-indicator" id="opencv-status"></span>
+                            </li>
+                            <li class="list-group-item d-flex justify-content-between align-items-center">
+                                Visualization
+                                <span class="status-indicator" id="visualization-status"></span>
+                            </li>
+                            <li class="list-group-item d-flex justify-content-between align-items-center">
+                                Tracker Initialized
+                                <span class="status-indicator" id="tracker-status"></span>
+                            </li>
+                            <li class="list-group-item d-flex justify-content-between align-items-center">
+                                Experiment Running
+                                <span class="status-indicator" id="experiment-status"></span>
+                            </li>
+                        </ul>
+                        <div class="mt-3">
+                            <button id="initialize-btn" class="btn btn-primary w-100">Initialize Components</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Configuration -->
+                <div class="card">
+                    <div class="card-header">Configuration</div>
+                    <div class="card-body">
+                        <form id="config-form">
+                            <div class="mb-3">
+                                <label for="tracker-type" class="form-label">Tracker Type</label>
+                                <select class="form-select" id="tracker-type">
+                                    <option value="webcam">Webcam</option>
+                                    <option value="tobii">Tobii</option>
+                                    <option value="mouse">Mouse</option>
+                                    <option value="simulated">Simulated</option>
+                                </select>
+                            </div>
+                            <div class="mb-3" id="webcam-selection">
+                                <label for="webcam-id" class="form-label">Webcam</label>
+                                <select class="form-select" id="webcam-id">
+                                    <option value="0">Loading webcams...</option>
+                                </select>
+                            </div>
+                            <div class="mb-3">
+                                <label for="calibration-points" class="form-label">Calibration Points</label>
+                                <select class="form-select" id="calibration-points">
+                                    <option value="5">5 Points</option>
+                                    <option value="9" selected>9 Points</option>
+                                </select>
+                            </div>
+                            <div class="mb-3">
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" id="fullscreen-toggle">
+                                    <label class="form-check-label" for="fullscreen-toggle">Fullscreen</label>
+                                </div>
+                            </div>
+                            <button type="submit" class="btn btn-primary w-100">Apply Configuration</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Calibration and Validation -->
+            <div class="col-md-8">
+                <div class="card">
+                    <div class="card-header">Calibration & Validation</div>
+                    <div class="card-body">
+                        <div class="row mb-3">
+                            <div class="col">
+                                <button id="calibrate-btn" class="btn btn-primary w-100">Run Calibration</button>
+                            </div>
+                            <div class="col">
+                                <button id="validate-btn" class="btn btn-success w-100">Run Validation</button>
+                            </div>
+                        </div>
+                        <div class="calibration-results mt-3">
+                            <h5>Calibration Results</h5>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <table class="table table-sm">
+                                        <tbody>
+                                            <tr>
+                                                <th>Average Error</th>
+                                                <td id="avg-error">-</td>
+                                            </tr>
+                                            <tr>
+                                                <th>Max Error</th>
+                                                <td id="max-error">-</td>
+                                            </tr>
+                                            <tr>
+                                                <th>Quality</th>
+                                                <td id="quality">-</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                                <div class="col-md-6">
+                                    <div id="calibration-visualization-container" class="text-center">
+                                        <img id="calibration-visualization" src="" alt="Calibration Visualization" style="display: none;">
+                                        <p id="no-visualization" class="text-muted">No calibration data available</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Experiment Control -->
+                <div class="card">
+                    <div class="card-header">Experiment Control</div>
+                    <div class="card-body">
+                        <div class="row mb-3">
+                            <div class="col">
+                                <label for="experiment-type" class="form-label">Experiment Type</label>
+                                <select class="form-select" id="experiment-type">
+                                    <option value="visual_search">Visual Search</option>
+                                </select>
+                            </div>
+                            <div class="col">
+                                <label for="participant-id" class="form-label">Participant ID</label>
+                                <input type="text" class="form-control" id="participant-id" placeholder="P001">
+                            </div>
+                        </div>
+                        <div class="row mb-3">
+                            <div class="col">
+                                <button id="start-experiment-btn" class="btn btn-success w-100">Start Experiment</button>
+                            </div>
+                            <div class="col">
+                                <button id="stop-experiment-btn" class="btn btn-danger w-100" disabled>Stop Experiment</button>
+                            </div>
+                        </div>
+                        <div class="experiment-status mt-3">
+                            <h5>Experiment Status</h5>
+                            <div class="alert alert-secondary" id="experiment-message">No experiment running</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Live Gaze Visualization -->
+                <div class="card">
+                    <div class="card-header">Live Gaze Visualization</div>
+                    <div class="card-body">
+                        <div id="gaze-visualization" style="position: relative; width: 100%; height: 200px; border: 1px solid #ccc; background-color: #f0f0f0;">
+                            <div id="gaze-point" class="gaze-point" style="display: none;"></div>
+                            <div class="text-center position-absolute top-50 start-50 translate-middle" id="gaze-status">
+                                Initialize tracker to see gaze data
+                            </div>
+                        </div>
+                        <div class="mt-3">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" id="live-tracking-toggle" disabled>
+                                <label class="form-check-label" for="live-tracking-toggle">Enable Live Tracking</label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <footer class="mt-4 mb-4 text-center text-muted">
+            <p>PsychoPy GazeTracking Interface &copy; 2023</p>
+        </footer>
+    </div>
+
+    <!-- Modal for messages -->
+    <div class="modal fade" id="message-modal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="modal-title">Message</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body" id="modal-body">
+                    Message content
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Global variables
+        let statusUpdateInterval;
+        let gazeUpdateInterval;
+        let messageModal;
+
+        // Initialize when document is ready
+        document.addEventListener('DOMContentLoaded', function() {
+            // Initialize Bootstrap modal
+            messageModal = new bootstrap.Modal(document.getElementById('message-modal'));
+            
+            // Set up event listeners
+            document.getElementById('initialize-btn').addEventListener('click', initializeComponents);
+            document.getElementById('calibrate-btn').addEventListener('click', runCalibration);
+            document.getElementById('validate-btn').addEventListener('click', runValidation);
+            document.getElementById('start-experiment-btn').addEventListener('click', startExperiment);
+            document.getElementById('stop-experiment-btn').addEventListener('click', stopExperiment);
+            document.getElementById('config-form').addEventListener('submit', updateConfig);
+            document.getElementById('live-tracking-toggle').addEventListener('change', toggleLiveTracking);
+            document.getElementById('tracker-type').addEventListener('change', updateTrackerTypeUI);
+            
+            // Start status updates
+            updateStatus();
+            statusUpdateInterval = setInterval(updateStatus, 5000);
+            
+            // Load webcam list
+            loadWebcamList();
+        });
+
+        // Update status indicators
+        function updateStatus() {
+            fetch('/api/status')
+                .then(response => response.json())
+                .then(data => {
+                    updateStatusIndicator('psychopy-status', data.psychopy_available);
+                    updateStatusIndicator('opencv-status', data.opencv_available);
+                    updateStatusIndicator('visualization-status', data.visualization_available);
+                    updateStatusIndicator('tracker-status', data.tracker_initialized);
+                    updateStatusIndicator('experiment-status', data.experiment_running);
+                    
+                    // Update UI based on status
+                    document.getElementById('calibrate-btn').disabled = !data.tracker_initialized;
+                    document.getElementById('validate-btn').disabled = !data.tracker_initialized;
+                    document.getElementById('start-experiment-btn').disabled = !data.tracker_initialized || data.experiment_running;
+                    document.getElementById('stop-experiment-btn').disabled = !data.experiment_running;
+                    document.getElementById('live-tracking-toggle').disabled = !data.tracker_initialized;
+                    
+                    // Update experiment status message
+                    if (data.experiment_running) {
+                        document.getElementById('experiment-message').textContent = 'Experiment is running';
+                        document.getElementById('experiment-message').className = 'alert alert-success';
+                    } else {
+                        document.getElementById('experiment-message').textContent = 'No experiment running';
+                        document.getElementById('experiment-message').className = 'alert alert-secondary';
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching status:', error);
+                });
+        }
+
+        // Update a status indicator
+        function updateStatusIndicator(id, available) {
+            const indicator = document.getElementById(id);
+            if (available) {
+                indicator.className = 'status-indicator status-available';
+            } else {
+                indicator.className = 'status-indicator status-unavailable';
+            }
+        }
+
+        // Initialize components
+        function initializeComponents() {
+            fetch('/api/initialize', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    showMessage('Success', 'Components initialized successfully');
+                    updateStatus();
+                } else {
+                    showMessage('Error', data.message || 'Failed to initialize components');
+                }
+            })
+            .catch(error => {
+                console.error('Error initializing components:', error);
+                showMessage('Error', 'Failed to initialize components: ' + error.message);
+            });
+        }
+
+        // Run calibration
+        function runCalibration() {
+            fetch('/api/calibrate', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    showMessage('Success', 'Calibration completed successfully');
+                    updateCalibrationResults();
+                } else {
+                    showMessage('Error', data.message || 'Failed to run calibration');
+                }
+            })
+            .catch(error => {
+                console.error('Error running calibration:', error);
+                showMessage('Error', 'Failed to run calibration: ' + error.message);
+            });
+        }
+
+        // Run validation
+        function runValidation() {
+            fetch('/api/validate', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    showMessage('Success', 'Validation completed successfully');
+                    // Display validation results
+                    const result = data.result;
+                    let message = `Validation Results:\n`;
+                    message += `Success: ${result.success}\n`;
+                    message += `Average Error: ${result.average_error}\n`;
+                    message += `Valid Points: ${result.valid_points}/${result.total_points}`;
+                    showMessage('Validation Results', message);
+                } else {
+                    showMessage('Error', data.message || 'Failed to run validation');
+                }
+            })
+            .catch(error => {
+                console.error('Error running validation:', error);
+                showMessage('Error', 'Failed to run validation: ' + error.message);
+            });
+        }
+
+        // Start experiment
+        function startExperiment() {
+            const experimentType = document.getElementById('experiment-type').value;
+            const participantId = document.getElementById('participant-id').value;
+            
+            fetch('/api/experiment/start', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    type: experimentType,
+                    params: {
+                        participant_id: participantId
+                    }
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    showMessage('Success', 'Experiment started successfully');
+                    updateStatus();
+                } else {
+                    showMessage('Error', data.message || 'Failed to start experiment');
+                }
+            })
+            .catch(error => {
+                console.error('Error starting experiment:', error);
+                showMessage('Error', 'Failed to start experiment: ' + error.message);
+            });
+        }
+
+        // Stop experiment
+        function stopExperiment() {
+            fetch('/api/experiment/stop', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    showMessage('Success', 'Experiment stopped successfully');
+                    updateStatus();
+                } else {
+                    showMessage('Error', data.message || 'Failed to stop experiment');
+                }
+            })
+            .catch(error => {
+                console.error('Error stopping experiment:', error);
+                showMessage('Error', 'Failed to stop experiment: ' + error.message);
+            });
+        }
+
+        // Update configuration
+        function updateConfig(event) {
+            event.preventDefault();
+            
+            const trackerType = document.getElementById('tracker-type').value;
+            const webcamId = parseInt(document.getElementById('webcam-id').value);
+            const calibrationPoints = parseInt(document.getElementById('calibration-points').value);
+            const fullscreen = document.getElementById('fullscreen-toggle').checked;
+            
+            fetch('/api/config', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    eye_tracking: {
+                        tracker_type: trackerType,
+                        webcam_id: webcamId,
+                        calibration_points: calibrationPoints
+                    },
+                    experiment: {
+                        fullscreen: fullscreen
+                    }
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    showMessage('Success', 'Configuration updated successfully');
+                } else {
+                    showMessage('Error', data.message || 'Failed to update configuration');
+                }
+            })
+            .catch(error => {
+                console.error('Error updating configuration:', error);
+                showMessage('Error', 'Failed to update configuration: ' + error.message);
+            });
+        }
+
+        // Toggle live tracking
+        function toggleLiveTracking(event) {
+            const enabled = event.target.checked;
+            
+            if (enabled) {
+                // Start gaze data updates
+                gazeUpdateInterval = setInterval(updateGazeVisualization, 100);
+                document.getElementById('gaze-status').style.display = 'none';
+                document.getElementById('gaze-point').style.display = 'block';
+            } else {
+                // Stop gaze data updates
+                clearInterval(gazeUpdateInterval);
+                document.getElementById('gaze-status').style.display = 'block';
+                document.getElementById('gaze-status').textContent = 'Live tracking disabled';
+                document.getElementById('gaze-point').style.display = 'none';
+            }
+        }
+
+        // Update gaze visualization
+        function updateGazeVisualization() {
+            fetch('/api/gaze_data')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        const gazeData = data.data;
+                        const gazePoint = document.getElementById('gaze-point');
+                        const container = document.getElementById('gaze-visualization');
+                        
+                        // Convert normalized coordinates to container coordinates
+                        const containerWidth = container.clientWidth;
+                        const containerHeight = container.clientHeight;
+                        
+                        // Gaze coordinates are in range -1 to 1, convert to pixels
+                        const x = ((gazeData.x + 1) / 2) * containerWidth;
+                        const y = ((gazeData.y + 1) / 2) * containerHeight;
+                        
+                        // Update gaze point position
+                        gazePoint.style.left = `${x}px`;
+                        gazePoint.style.top = `${y}px`;
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching gaze data:', error);
+                });
+        }
+
+        // Update calibration results
+        function updateCalibrationResults() {
+            fetch('/api/visualization/calibration')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        // Update metrics
+                        document.getElementById('avg-error').textContent = data.metrics.average_error;
+                        document.getElementById('max-error').textContent = data.metrics.max_error;
+                        document.getElementById('quality').textContent = data.metrics.quality;
+                        
+                        // Update visualization
+                        const img = document.getElementById('calibration-visualization');
+                        img.src = data.image;
+                        img.style.display = 'block';
+                        document.getElementById('no-visualization').style.display = 'none';
+                    } else {
+                        document.getElementById('no-visualization').textContent = 'Visualization not available';
+                        document.getElementById('no-visualization').style.display = 'block';
+                        document.getElementById('calibration-visualization').style.display = 'none';
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching calibration visualization:', error);
+                    document.getElementById('no-visualization').textContent = 'Error loading visualization';
+                    document.getElementById('no-visualization').style.display = 'block';
+                    document.getElementById('calibration-visualization').style.display = 'none';
+                });
+        }
+
+        // Load webcam list
+        function loadWebcamList() {
+            fetch('/api/webcam_list')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        const webcamSelect = document.getElementById('webcam-id');
+                        webcamSelect.innerHTML = '';
+                        
+                        if (data.webcams.length === 0) {
+                            const option = document.createElement('option');
+                            option.value = '0';
+                            option.textContent = 'No webcams detected';
+                            webcamSelect.appendChild(option);
+                        } else {
+                            data.webcams.forEach(webcam => {
+                                const option = document.createElement('option');
+                                option.value = webcam.id;
+                                option.textContent = `${webcam.name} (${webcam.resolution})`;
+                                webcamSelect.appendChild(option);
+                            });
+                        }
+                    } else {
+                        const webcamSelect = document.getElementById('webcam-id');
+                        webcamSelect.innerHTML = '';
+                        const option = document.createElement('option');
+                        option.value = '0';
+                        option.textContent = 'Error loading webcams';
+                        webcamSelect.appendChild(option);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error loading webcam list:', error);
+                    const webcamSelect = document.getElementById('webcam-id');
+                    webcamSelect.innerHTML = '';
+                    const option = document.createElement('option');
+                    option.value = '0';
+                    option.textContent = 'Error loading webcams';
+                    webcamSelect.appendChild(option);
+                });
+        }
+
+        // Update UI based on tracker type
+        function updateTrackerTypeUI() {
+            const trackerType = document.getElementById('tracker-type').value;
+            const webcamSelection = document.getElementById('webcam-selection');
+            
+            if (trackerType === 'webcam') {
+                webcamSelection.style.display = 'block';
+            } else {
+                webcamSelection.style.display = 'none';
+            }
+        }
+
+        // Show message in modal
+        function showMessage(title, message) {
+            document.getElementById('modal-title').textContent = title;
+            document.getElementById('modal-body').textContent = message;
+            messageModal.show();
+        }
+    </script>
+</body>
+</html> 
