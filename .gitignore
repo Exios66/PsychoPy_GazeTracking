@@ -1,1 +1,82 @@
+# Node.js
 node_modules
+npm-debug.log
+yarn-error.log
+.pnp
+.pnp.js
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual Environment
+venv/
+.venv/
+env/
+ENV/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# PsychoPy specific
+*.psyexp
+*.pyc
+*.pyo
+*.pyd
+*.spec
+*.log
+data/
+!PsychoPyInterface/data/
+!PsychoPyInterface/data/.gitkeep
+
+# Test files
+.coverage
+htmlcov/
+.pytest_cache/
+tests/test_plot.png
+
+# Jupyter Notebooks
+.ipynb_checkpoints
+*.ipynb
+
+# Distribution / packaging
+.Python
+env/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
