@@ -18,6 +18,23 @@ from datetime import datetime
 from psychopy import core, visual, event, iohub
 from threading import Lock
 
+# Try to import OpenCV, but handle case where it's not installed
+try:
+    import cv2
+    OPENCV_AVAILABLE = True
+except ImportError:
+    OPENCV_AVAILABLE = False
+    logger = logging.getLogger('EyeTracker')
+    logger.warning("OpenCV (cv2) not found. Webcam-based eye tracking will not be available.")
+
+# Try to import Tobii Research SDK
+try:
+    import tobii_research as tr
+    TOBII_AVAILABLE = True
+except ImportError:
+    TOBII_AVAILABLE = False
+    logger = logging.getLogger('EyeTracker')
+    logger.warning("Tobii Research SDK not found. Tobii eye tracking will not be available.")
 
 # Configure logging
 logging.basicConfig(
@@ -36,6 +53,7 @@ class EyeTracker:
     - PsychoPy's built-in iohub interface
     - WebGazer.js (via WebGazerBridge)
     - External eye trackers (Tobii, EyeLink, etc.)
+    - Direct webcam access (using OpenCV)
     
     Features include:
     - Robust error handling and recovery
@@ -50,7 +68,7 @@ class EyeTracker:
     window : psychopy.visual.Window
         The PsychoPy window object
     tracker_type : str
-        The type of eye tracker to use ('psychopy', 'webgazer', 'tobii', 'eyelink')
+        The type of eye tracker to use ('psychopy', 'webgazer', 'tobii', 'eyelink', 'webcam', 'mouse')
     calibration_points : int
         Number of calibration points (default: 9)
     data_dir : str or Path
@@ -59,17 +77,21 @@ class EyeTracker:
         Level of data validation ('none', 'basic', 'strict')
     auto_save_interval : float
         Interval in seconds for automatic data saving (0 to disable)
+    webcam_id : int
+        Camera ID to use for webcam-based tracking (default: 0)
     """
     
-    SUPPORTED_TRACKERS = ['psychopy', 'webgazer', 'tobii', 'eyelink', 'mouse']
+    SUPPORTED_TRACKERS = ['psychopy', 'webgazer', 'tobii', 'eyelink', 'webcam', 'mouse']
     
     def __init__(self, window, tracker_type='psychopy', calibration_points=9, 
-                 data_dir=None, validation_level='basic', auto_save_interval=60.0):
+                 data_dir=None, validation_level='basic', auto_save_interval=60.0,
+                 webcam_id=0):
         self.window = window
         self.tracker_type = tracker_type.lower()
         self.calibration_points = calibration_points
         self.validation_level = validation_level
         self.auto_save_interval = auto_save_interval
+        self.webcam_id = webcam_id
         
         if self.tracker_type not in self.SUPPORTED_TRACKERS:
             logger.error(f"Unsupported tracker type: {self.tracker_type}")
@@ -130,9 +152,21 @@ class EyeTracker:
         elif self.tracker_type == 'webgazer':
             self._initialize_webgazer()
         elif self.tracker_type == 'tobii':
-            self._initialize_tobii()
+            if not TOBII_AVAILABLE:
+                logger.warning("Tobii Research SDK not available. Falling back to mouse simulation.")
+                self.tracker_type = 'mouse'
+                self._initialize_mouse()
+            else:
+                self._initialize_tobii()
         elif self.tracker_type == 'eyelink':
             self._initialize_eyelink()
+        elif self.tracker_type == 'webcam':
+            if not OPENCV_AVAILABLE:
+                logger.warning("OpenCV not available. Falling back to mouse simulation.")
+                self.tracker_type = 'mouse'
+                self._initialize_mouse()
+            else:
+                self._initialize_webcam()
         elif self.tracker_type == 'mouse':
             self._initialize_mouse()
         else:
@@ -143,6 +177,172 @@ class EyeTracker:
         logger.info("Initializing mouse simulation for eye tracking")
         self.io = iohub.launchHubServer()
         self.tracker = self.io.devices.mouse
+    
+    def _initialize_webcam(self):
+        """Initialize webcam-based eye tracking using OpenCV."""
+        logger.info(f"Initializing webcam-based eye tracking with camera ID: {self.webcam_id}")
+        
+        if not OPENCV_AVAILABLE:
+            logger.error("OpenCV (cv2) is not available. Cannot initialize webcam tracking.")
+            logger.error("Please install OpenCV: pip install opencv-python")
+            raise ImportError("OpenCV (cv2) is required for webcam-based eye tracking")
+        
+        try:
+            # Try to get a list of available cameras
+            available_cameras = self._detect_available_cameras()
+            
+            if not available_cameras:
+                logger.error("No webcams detected on the system")
+                raise RuntimeError("No webcams detected")
+                
+            logger.info(f"Detected {len(available_cameras)} camera(s): {available_cameras}")
+            
+            # Check if the requested webcam_id is valid
+            if self.webcam_id not in available_cameras:
+                logger.warning(f"Requested camera ID {self.webcam_id} not found. Using first available camera.")
+                self.webcam_id = available_cameras[0]
+            
+            # Initialize the webcam
+            self.cap = cv2.VideoCapture(self.webcam_id)
+            
+            # Check if webcam opened successfully
+            if not self.cap.isOpened():
+                logger.error(f"Failed to open webcam with ID {self.webcam_id}")
+                raise RuntimeError(f"Failed to open webcam with ID {self.webcam_id}")
+            
+            # Try to set camera properties for better performance
+            self._configure_webcam()
+            
+            # Create a simple wrapper for the webcam to match the tracker interface
+            self.tracker = WebcamTracker(self.cap)
+            
+            # Test capture to ensure webcam is working
+            ret, frame = self.cap.read()
+            if not ret or frame is None:
+                logger.error("Failed to capture frame from webcam")
+                raise RuntimeError("Failed to capture frame from webcam")
+                
+            logger.info(f"Successfully initialized webcam with ID {self.webcam_id}")
+            
+            # Initialize face detector
+            self._initialize_face_detector()
+            
+        except Exception as e:
+            logger.error(f"Error initializing webcam: {e}", exc_info=True)
+            # Close the camera if it was opened
+            if hasattr(self, 'cap') and self.cap is not None:
+                self.cap.release()
+            raise
+    
+    def _detect_available_cameras(self, max_cameras=10):
+        """
+        Detect available cameras on the system.
+        
+        Parameters
+        ----------
+        max_cameras : int
+            Maximum number of cameras to check
+            
+        Returns
+        -------
+        list
+            List of available camera IDs
+        """
+        available_cameras = []
+        
+        # Try common camera indices
+        for i in range(max_cameras):
+            try:
+                cap = cv2.VideoCapture(i)
+                if cap.isOpened():
+                    ret, frame = cap.read()
+                    if ret:
+                        available_cameras.append(i)
+                cap.release()
+            except Exception as e:
+                logger.debug(f"Error checking camera {i}: {e}")
+        
+        return available_cameras
+    
+    def _configure_webcam(self):
+        """Configure webcam properties for optimal eye tracking."""
+        try:
+            # Set resolution (adjust as needed for your application)
+            self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+            self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+            
+            # Try to set frame rate (30 fps is usually good for eye tracking)
+            self.cap.set(cv2.CAP_PROP_FPS, 30)
+            
+            # Try to reduce exposure for faster frame rate (if supported)
+            self.cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, 0.25)  # 0.25 means manual exposure
+            self.cap.set(cv2.CAP_PROP_EXPOSURE, 40)  # Lower value = less exposure
+            
+            # Get actual camera properties
+            actual_width = self.cap.get(cv2.CAP_PROP_FRAME_WIDTH)
+            actual_height = self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
+            actual_fps = self.cap.get(cv2.CAP_PROP_FPS)
+            
+            logger.info(f"Webcam configured with resolution: {actual_width}x{actual_height}, FPS: {actual_fps}")
+            
+        except Exception as e:
+            logger.warning(f"Error configuring webcam properties: {e}. Using default settings.")
+    
+    def _initialize_face_detector(self):
+        """Initialize face and eye detection for webcam-based tracking."""
+        try:
+            # Try to load pre-trained Haar cascade classifiers
+            cascade_path = Path(cv2.__file__).parent / 'data'
+            
+            # Face detector
+            face_cascade_path = cascade_path / 'haarcascade_frontalface_default.xml'
+            if face_cascade_path.exists():
+                self.face_cascade = cv2.CascadeClassifier(str(face_cascade_path))
+                logger.info("Face detector initialized successfully")
+            else:
+                # Try alternative paths
+                alt_paths = [
+                    Path('/usr/local/share/opencv4/haarcascades/haarcascade_frontalface_default.xml'),
+                    Path('/usr/share/opencv4/haarcascades/haarcascade_frontalface_default.xml'),
+                    Path('/usr/share/opencv/haarcascades/haarcascade_frontalface_default.xml')
+                ]
+                
+                for path in alt_paths:
+                    if path.exists():
+                        self.face_cascade = cv2.CascadeClassifier(str(path))
+                        logger.info(f"Face detector initialized from alternative path: {path}")
+                        break
+                else:
+                    logger.warning("Face cascade file not found. Face detection will be disabled.")
+                    self.face_cascade = None
+            
+            # Eye detector
+            eye_cascade_path = cascade_path / 'haarcascade_eye.xml'
+            if eye_cascade_path.exists():
+                self.eye_cascade = cv2.CascadeClassifier(str(eye_cascade_path))
+                logger.info("Eye detector initialized successfully")
+            else:
+                # Try alternative paths
+                alt_paths = [
+                    Path('/usr/local/share/opencv4/haarcascades/haarcascade_eye.xml'),
+                    Path('/usr/share/opencv4/haarcascades/haarcascade_eye.xml'),
+                    Path('/usr/share/opencv/haarcascades/haarcascade_eye.xml')
+                ]
+                
+                for path in alt_paths:
+                    if path.exists():
+                        self.eye_cascade = cv2.CascadeClassifier(str(path))
+                        logger.info(f"Eye detector initialized from alternative path: {path}")
+                        break
+                else:
+                    logger.warning("Eye cascade file not found. Eye detection will be disabled.")
+                    self.eye_cascade = None
+                    
+        except Exception as e:
+            logger.error(f"Error initializing face/eye detectors: {e}", exc_info=True)
+            self.face_cascade = None
+            self.eye_cascade = None
+            logger.warning("Face and eye detection will be disabled")
     
     def _initialize_psychopy_tracker(self):
         """Initialize PsychoPy's built-in eye tracker via iohub."""
@@ -195,14 +395,18 @@ class EyeTracker:
     
     def _initialize_tobii(self):
         """Initialize Tobii eye tracker with robust error handling."""
-        try:
-            import tobii_research as tr
+        if not TOBII_AVAILABLE:
+            logger.error("Tobii Research SDK is not available. Cannot initialize Tobii eye tracker.")
+            logger.error("Please install Tobii Research SDK: pip install tobii-research")
+            raise ImportError("Tobii Research SDK is required for Tobii eye tracking")
             
+        try:
             # Find Tobii eye trackers
             eyetrackers = tr.find_all_eyetrackers()
             
-            if len(eyetrackers) == 0:
-                raise Exception("No Tobii eye trackers found")
+            if not eyetrackers:
+                logger.error("No Tobii eye trackers found")
+                raise RuntimeError("No Tobii eye trackers found")
                 
             # Use the first eye tracker
             self.tracker = eyetrackers[0]
@@ -400,6 +604,8 @@ class EyeTracker:
                     result = self._calibrate_tobii()
                 elif self.tracker_type == 'eyelink':
                     result = self._calibrate_eyelink()
+                elif self.tracker_type == 'webcam':
+                    result = self._calibrate_webcam()
                 elif self.tracker_type == 'mouse':
                     # No calibration needed for mouse simulation
                     return True
@@ -669,7 +875,6 @@ class EyeTracker:
         
         # Run calibration
         try:
-            import tobii_research as tr
             calibration = tr.ScreenBasedCalibration(self.tracker)
             
             # Enter calibration mode
@@ -813,6 +1018,12 @@ class EyeTracker:
         self.tracker.doTrackerSetup()
         return True
     
+    def _calibrate_webcam(self):
+        """Calibrate webcam-based eye tracking."""
+        # Implementation of webcam calibration logic
+        # This is a placeholder and should be implemented based on the specific webcam calibration method
+        return False
+    
     def start_recording(self):
         """Start recording eye tracking data."""
         self.gaze_data = []
@@ -847,8 +1058,10 @@ class EyeTracker:
         Returns
         -------
         tuple
-            (x, y) coordinates of gaze position in window coordinates
+            (x, y) coordinates of gaze position, normalized to window size
         """
+        if self.tracker_type == 'webcam':
+            return self._get_webcam_gaze()
         if not self.is_recording:
             self.update()
             
@@ -856,7 +1069,7 @@ class EyeTracker:
             latest = self.gaze_data[-1]
             return (latest['x'], latest['y'])
         else:
-            return (0, 0)
+            return (0.5, 0.5)
     
     def update(self):
         """Update gaze data from the eye tracker."""
@@ -864,9 +1077,14 @@ class EyeTracker:
             self._update_psychopy()
         elif self.tracker_type == 'webgazer':
             self._update_webgazer()
+        elif self.tracker_type == 'tobii':
+            self._update_tobii()
+        elif self.tracker_type == 'eyelink':
+            self._update_eyelink()
+        elif self.tracker_type == 'webcam':
+            self._update_webcam()
         elif self.tracker_type == 'mouse':
             self._update_mouse()
-        # Tobii and EyeLink updates are handled by callbacks
     
     def _update_psychopy(self):
         """Update gaze data from PsychoPy's eye tracker."""
@@ -903,6 +1121,24 @@ class EyeTracker:
                     'pupil_right': None
                 })
     
+    def _update_tobii(self):
+        """Update gaze data from Tobii eye tracker."""
+        # Implementation of Tobii update logic
+        # This is a placeholder and should be implemented based on the specific Tobii update method
+        pass
+    
+    def _update_eyelink(self):
+        """Update gaze data from EyeLink eye tracker."""
+        # Implementation of EyeLink update logic
+        # This is a placeholder and should be implemented based on the specific EyeLink update method
+        pass
+    
+    def _update_webcam(self):
+        """Update gaze data from webcam-based tracking."""
+        # Implementation of webcam update logic
+        # This is a placeholder and should be implemented based on the specific webcam update method
+        pass
+    
     def _update_mouse(self):
         """Update gaze data using mouse position (simulation)."""
         pos = self.tracker.getPos()
@@ -914,6 +1150,74 @@ class EyeTracker:
             'pupil_left': None,
             'pupil_right': None
         })
+    
+    def _get_webcam_gaze(self):
+        """
+        Get gaze position from webcam-based tracking.
+        
+        Returns
+        -------
+        tuple
+            (x, y) coordinates of gaze position, normalized to window size
+        """
+        try:
+            if not hasattr(self, 'cap') or not self.cap.isOpened():
+                logger.error("Webcam is not initialized or has been closed")
+                return (0.5, 0.5)  # Return center of screen as fallback
+            
+            # Capture frame from webcam
+            ret, frame = self.cap.read()
+            if not ret or frame is None:
+                logger.warning("Failed to capture frame from webcam")
+                return (0.5, 0.5)
+            
+            # Convert to grayscale for face detection
+            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            
+            # Detect faces
+            if self.face_cascade is not None:
+                faces = self.face_cascade.detectMultiScale(
+                    gray, 
+                    scaleFactor=1.1, 
+                    minNeighbors=5, 
+                    minSize=(30, 30)
+                )
+                
+                if len(faces) > 0:
+                    # Use the first detected face
+                    (x, y, w, h) = faces[0]
+                    
+                    # Extract face region
+                    roi_gray = gray[y:y+h, x:x+w]
+                    
+                    # Detect eyes in the face region
+                    if self.eye_cascade is not None:
+                        eyes = self.eye_cascade.detectMultiScale(roi_gray)
+                        
+                        if len(eyes) >= 2:
+                            # Calculate center point between the eyes
+                            eye_centers = []
+                            for (ex, ey, ew, eh) in eyes[:2]:  # Use first two detected eyes
+                                eye_center_x = x + ex + ew // 2
+                                eye_center_y = y + ey + eh // 2
+                                eye_centers.append((eye_center_x, eye_center_y))
+                            
+                            # Average the eye centers
+                            avg_x = sum(c[0] for c in eye_centers) / len(eye_centers)
+                            avg_y = sum(c[1] for c in eye_centers) / len(eye_centers)
+                            
+                            # Normalize to window coordinates (0-1)
+                            norm_x = avg_x / frame.shape[1]
+                            norm_y = avg_y / frame.shape[0]
+                            
+                            return (norm_x, norm_y)
+            
+            # If face/eye detection failed, return center of screen
+            return (0.5, 0.5)
+            
+        except Exception as e:
+            logger.error(f"Error in webcam gaze tracking: {e}", exc_info=True)
+            return (0.5, 0.5)  # Return center of screen as fallback
     
     def save_data(self, filename=None):
         """
@@ -959,7 +1263,6 @@ class EyeTracker:
             if hasattr(self.tracker, 'stop'):
                 self.tracker.stop()
         elif self.tracker_type == 'tobii':
-            import tobii_research as tr
             if hasattr(self.tracker, 'unsubscribe_from'):
                 self.tracker.unsubscribe_from(tr.EYETRACKER_GAZE_DATA)
         elif self.tracker_type == 'eyelink':
@@ -968,4 +1271,65 @@ class EyeTracker:
         
         # Close iohub connection if it exists
         if hasattr(self, 'io'):
-            self.io.quit() 
+            self.io.quit()
+        
+        # Add webcam cleanup
+        if self.tracker_type == 'webcam' and hasattr(self, 'cap') and self.cap is not None:
+            try:
+                self.cap.release()
+                logger.info("Webcam released successfully")
+            except Exception as e:
+                logger.error(f"Error releasing webcam: {e}")
+
+
+class WebcamTracker:
+    """Simple wrapper class for webcam to match the tracker interface."""
+    
+    def __init__(self, cap):
+        """
+        Initialize the webcam tracker.
+        
+        Parameters
+        ----------
+        cap : cv2.VideoCapture
+            OpenCV VideoCapture object
+        """
+        self.cap = cap
+        
+    def getPosition(self):
+        """
+        Get the current position (dummy method to match tracker interface).
+        
+        Returns
+        -------
+        tuple
+            (x, y) coordinates (0.5, 0.5) as placeholder
+        """
+        return (0.5, 0.5)
+        
+    def setRecordingState(self, state):
+        """
+        Set recording state (dummy method to match tracker interface).
+        
+        Parameters
+        ----------
+        state : bool
+            Whether to record or not
+        """
+        pass
+        
+    def getEvents(self, event_type=None):
+        """
+        Get events (dummy method to match tracker interface).
+        
+        Parameters
+        ----------
+        event_type : str, optional
+            Type of events to get
+            
+        Returns
+        -------
+        list
+            Empty list as placeholder
+        """
+        return [] 
