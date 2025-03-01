@@ -1,9 +1,24 @@
 # Scripts/calibration_analysis.py
 import os
 import numpy as np
-import matplotlib.pyplot as plt
+import logging
+import traceback
 from datetime import datetime
 import json
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger('calibration_analysis')
+
+try:
+    import matplotlib.pyplot as plt
+    MATPLOTLIB_AVAILABLE = True
+except ImportError:
+    MATPLOTLIB_AVAILABLE = False
+    logger.warning("Matplotlib not found. Visualization functions will not be available.")
 
 def analyze_calibration(log_file_path, threshold=1.0):
     """
@@ -32,80 +47,97 @@ def analyze_calibration(log_file_path, threshold=1.0):
     target_points = []
     
     if not os.path.exists(log_file_path):
-        print(f"Warning: Calibration file not found at {log_file_path}")
+        logger.warning(f"Calibration file not found at {log_file_path}")
         return None
 
-    with open(log_file_path, "r") as f:
-        header = next(f)  # Skip header
-        for line in f:
-            parts = [p.strip() for p in line.strip().split(',')]
-            if len(parts) < 6:
-                continue
+    try:
+        with open(log_file_path, "r") as f:
             try:
-                point_idx = int(parts[0])
-                config_x, config_y = float(parts[1]), float(parts[2])
-                gaze_x, gaze_y = float(parts[3]), float(parts[4])
-                error = float(parts[5])
+                header = next(f)  # Skip header
+            except StopIteration:
+                logger.error(f"Calibration file is empty: {log_file_path}")
+                return None
                 
-                errors.append(error)
-                points.append(point_idx)
-                target_points.append((config_x, config_y))
-                gaze_points.append((gaze_x, gaze_y))
-            except (ValueError, IndexError) as e:
-                print(f"Warning: Could not parse line: {line.strip()} - {str(e)}")
-                continue
+            for line_num, line in enumerate(f, start=2):
+                parts = [p.strip() for p in line.strip().split(',')]
+                if len(parts) < 6:
+                    logger.warning(f"Line {line_num} has insufficient data: {line.strip()}")
+                    continue
+                try:
+                    point_idx = int(parts[0])
+                    config_x, config_y = float(parts[1]), float(parts[2])
+                    gaze_x, gaze_y = float(parts[3]), float(parts[4])
+                    error = float(parts[5])
+                    
+                    errors.append(error)
+                    points.append(point_idx)
+                    target_points.append((config_x, config_y))
+                    gaze_points.append((gaze_x, gaze_y))
+                except (ValueError, IndexError) as e:
+                    logger.warning(f"Could not parse line {line_num}: {line.strip()} - {str(e)}")
+                    continue
+    except Exception as e:
+        logger.error(f"Error reading calibration file: {str(e)}")
+        logger.error(traceback.format_exc())
+        return None
 
     if not errors:
+        logger.warning("No valid calibration data found in the file")
         return None
 
-    # Calculate error metrics
-    errors_array = np.array(errors)
-    points_above_threshold = np.sum(errors_array > threshold)
-    percent_above_threshold = (points_above_threshold / len(errors)) * 100
-    
-    # Calculate spatial accuracy (mean error by region)
-    # Divide screen into quadrants and calculate mean error for each
-    quadrant_errors = {
-        "top_left": [], "top_right": [],
-        "bottom_left": [], "bottom_right": []
-    }
-    
-    for i, (tx, ty) in enumerate(target_points):
-        if tx < 0 and ty > 0:
-            quadrant_errors["top_left"].append(errors[i])
-        elif tx >= 0 and ty > 0:
-            quadrant_errors["top_right"].append(errors[i])
-        elif tx < 0 and ty <= 0:
-            quadrant_errors["bottom_left"].append(errors[i])
-        else:
-            quadrant_errors["bottom_right"].append(errors[i])
-    
-    quadrant_means = {q: np.mean(errs) if errs else None for q, errs in quadrant_errors.items()}
-    
-    # Calculate precision (standard deviation of samples for each point)
-    precision = np.std(errors)
-    
-    # Calculate median which is less sensitive to outliers
-    median_error = np.median(errors)
-    
-    analysis = {
-        "average": np.mean(errors),
-        "median": median_error,
-        "std": np.std(errors),
-        "min": np.min(errors),
-        "max": np.max(errors),
-        "errors": errors,
-        "points": points,
-        "target_points": target_points,
-        "gaze_points": gaze_points,
-        "points_above_threshold": points_above_threshold,
-        "percent_above_threshold": percent_above_threshold,
-        "quadrant_means": quadrant_means,
-        "precision": precision,
-        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        "threshold_used": threshold
-    }
-    return analysis
+    try:
+        # Calculate error metrics
+        errors_array = np.array(errors)
+        points_above_threshold = np.sum(errors_array > threshold)
+        percent_above_threshold = (points_above_threshold / len(errors)) * 100
+        
+        # Calculate spatial accuracy (mean error by region)
+        # Divide screen into quadrants and calculate mean error for each
+        quadrant_errors = {
+            "top_left": [], "top_right": [],
+            "bottom_left": [], "bottom_right": []
+        }
+        
+        for i, (tx, ty) in enumerate(target_points):
+            if tx < 0 and ty > 0:
+                quadrant_errors["top_left"].append(errors[i])
+            elif tx >= 0 and ty > 0:
+                quadrant_errors["top_right"].append(errors[i])
+            elif tx < 0 and ty <= 0:
+                quadrant_errors["bottom_left"].append(errors[i])
+            else:
+                quadrant_errors["bottom_right"].append(errors[i])
+        
+        quadrant_means = {q: np.mean(errs) if errs else None for q, errs in quadrant_errors.items()}
+        
+        # Calculate precision (standard deviation of samples for each point)
+        precision = np.std(errors)
+        
+        # Calculate median which is less sensitive to outliers
+        median_error = np.median(errors)
+        
+        analysis = {
+            "average": np.mean(errors),
+            "median": median_error,
+            "std": np.std(errors),
+            "min": np.min(errors),
+            "max": np.max(errors),
+            "errors": errors,
+            "points": points,
+            "target_points": target_points,
+            "gaze_points": gaze_points,
+            "points_above_threshold": points_above_threshold,
+            "percent_above_threshold": percent_above_threshold,
+            "quadrant_means": quadrant_means,
+            "precision": precision,
+            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "threshold_used": threshold
+        }
+        return analysis
+    except Exception as e:
+        logger.error(f"Error analyzing calibration data: {str(e)}")
+        logger.error(traceback.format_exc())
+        return None
 
 def visualize_calibration(analysis, output_dir=None):
     """
@@ -118,86 +150,97 @@ def visualize_calibration(analysis, output_dir=None):
     output_dir : str, optional
         Directory to save visualizations (if None, just displays)
     """
+    if not MATPLOTLIB_AVAILABLE:
+        logger.error("Matplotlib is required for visualization. Please install it: pip install matplotlib")
+        return
+        
     if not analysis:
-        print("No analysis data to visualize")
+        logger.warning("No analysis data to visualize")
         return
     
-    # Create figure with subplots
-    fig = plt.figure(figsize=(15, 10))
-    
-    # Plot 1: Error distribution
-    ax1 = fig.add_subplot(221)
-    ax1.hist(analysis['errors'], bins=10, alpha=0.7, color='blue')
-    ax1.axvline(analysis['average'], color='red', linestyle='--', label=f"Mean: {analysis['average']:.3f}")
-    ax1.axvline(analysis['median'], color='green', linestyle='--', label=f"Median: {analysis['median']:.3f}")
-    ax1.set_title('Error Distribution')
-    ax1.set_xlabel('Error')
-    ax1.set_ylabel('Frequency')
-    ax1.legend()
-    
-    # Plot 2: Spatial accuracy (target vs. gaze)
-    ax2 = fig.add_subplot(222)
-    target_x, target_y = zip(*analysis['target_points'])
-    gaze_x, gaze_y = zip(*analysis['gaze_points'])
-    
-    # Plot target points
-    ax2.scatter(target_x, target_y, color='blue', label='Target', s=50)
-    
-    # Plot gaze points
-    ax2.scatter(gaze_x, gaze_y, color='red', alpha=0.5, label='Gaze', s=30)
-    
-    # Draw lines connecting corresponding points
-    for i in range(len(target_x)):
-        ax2.plot([target_x[i], gaze_x[i]], [target_y[i], gaze_y[i]], 'k-', alpha=0.3)
-    
-    ax2.set_title('Spatial Accuracy')
-    ax2.set_xlabel('X Coordinate')
-    ax2.set_ylabel('Y Coordinate')
-    ax2.legend()
-    ax2.grid(True, alpha=0.3)
-    
-    # Plot 3: Error by point index
-    ax3 = fig.add_subplot(223)
-    ax3.bar(analysis['points'], analysis['errors'], alpha=0.7)
-    ax3.axhline(analysis['threshold_used'], color='red', linestyle='--', 
-                label=f'Threshold: {analysis["threshold_used"]:.2f}')
-    ax3.set_title('Error by Calibration Point')
-    ax3.set_xlabel('Point Index')
-    ax3.set_ylabel('Error')
-    ax3.legend()
-    
-    # Plot 4: Quadrant analysis
-    ax4 = fig.add_subplot(224)
-    quadrants = list(analysis['quadrant_means'].keys())
-    means = [analysis['quadrant_means'][q] if analysis['quadrant_means'][q] is not None else 0 
-             for q in quadrants]
-    
-    ax4.bar(quadrants, means, alpha=0.7)
-    ax4.set_title('Error by Screen Quadrant')
-    ax4.set_xlabel('Quadrant')
-    ax4.set_ylabel('Mean Error')
-    
-    plt.tight_layout()
-    
-    # Save if output directory provided
-    if output_dir:
-        os.makedirs(output_dir, exist_ok=True)
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        plt.savefig(os.path.join(output_dir, f"calibration_analysis_{timestamp}.png"))
+    try:
+        # Create figure with subplots
+        fig = plt.figure(figsize=(15, 10))
         
-        # Also save analysis as JSON
-        with open(os.path.join(output_dir, f"calibration_analysis_{timestamp}.json"), 'w') as f:
-            # Convert numpy types to Python native types for JSON serialization
-            json_safe_analysis = {k: v for k, v in analysis.items() if k not in ['errors', 'points', 'target_points', 'gaze_points']}
-            json_safe_analysis['errors'] = [float(e) for e in analysis['errors']]
-            json_safe_analysis['points'] = [int(p) for p in analysis['points']]
-            json_safe_analysis['target_points'] = [(float(x), float(y)) for x, y in analysis['target_points']]
-            json_safe_analysis['gaze_points'] = [(float(x), float(y)) for x, y in analysis['gaze_points']]
-            json_safe_analysis['quadrant_means'] = {k: float(v) if v is not None else None for k, v in analysis['quadrant_means'].items()}
+        # Plot 1: Error distribution
+        ax1 = fig.add_subplot(221)
+        ax1.hist(analysis['errors'], bins=10, alpha=0.7, color='blue')
+        ax1.axvline(analysis['average'], color='red', linestyle='--', label=f"Mean: {analysis['average']:.3f}")
+        ax1.axvline(analysis['median'], color='green', linestyle='--', label=f"Median: {analysis['median']:.3f}")
+        ax1.set_title('Error Distribution')
+        ax1.set_xlabel('Error')
+        ax1.set_ylabel('Frequency')
+        ax1.legend()
+        
+        # Plot 2: Spatial accuracy (target vs. gaze)
+        ax2 = fig.add_subplot(222)
+        target_x, target_y = zip(*analysis['target_points'])
+        gaze_x, gaze_y = zip(*analysis['gaze_points'])
+        
+        # Plot target points
+        ax2.scatter(target_x, target_y, color='blue', label='Target', s=50)
+        
+        # Plot gaze points
+        ax2.scatter(gaze_x, gaze_y, color='red', alpha=0.5, label='Gaze', s=30)
+        
+        # Draw lines connecting corresponding points
+        for i in range(len(target_x)):
+            ax2.plot([target_x[i], gaze_x[i]], [target_y[i], gaze_y[i]], 'k-', alpha=0.3)
+        
+        ax2.set_title('Spatial Accuracy')
+        ax2.set_xlabel('X Coordinate')
+        ax2.set_ylabel('Y Coordinate')
+        ax2.legend()
+        ax2.grid(True, alpha=0.3)
+        
+        # Plot 3: Error by point index
+        ax3 = fig.add_subplot(223)
+        ax3.bar(analysis['points'], analysis['errors'], alpha=0.7)
+        ax3.axhline(analysis['threshold_used'], color='red', linestyle='--', 
+                    label=f'Threshold: {analysis["threshold_used"]:.2f}')
+        ax3.set_title('Error by Calibration Point')
+        ax3.set_xlabel('Point Index')
+        ax3.set_ylabel('Error')
+        ax3.legend()
+        
+        # Plot 4: Quadrant analysis
+        ax4 = fig.add_subplot(224)
+        quadrants = list(analysis['quadrant_means'].keys())
+        means = [analysis['quadrant_means'][q] if analysis['quadrant_means'][q] is not None else 0 
+                for q in quadrants]
+        
+        ax4.bar(quadrants, means, alpha=0.7)
+        ax4.set_title('Error by Screen Quadrant')
+        ax4.set_xlabel('Quadrant')
+        ax4.set_ylabel('Mean Error')
+        
+        plt.tight_layout()
+        
+        # Save if output directory provided
+        if output_dir:
+            os.makedirs(output_dir, exist_ok=True)
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            plt.savefig(os.path.join(output_dir, f"calibration_analysis_{timestamp}.png"))
             
-            json.dump(json_safe_analysis, f, indent=2)
-    
-    plt.show()
+            # Also save analysis as JSON
+            try:
+                with open(os.path.join(output_dir, f"calibration_analysis_{timestamp}.json"), 'w') as f:
+                    # Convert numpy types to Python native types for JSON serialization
+                    json_safe_analysis = {k: v for k, v in analysis.items() if k not in ['errors', 'points', 'target_points', 'gaze_points']}
+                    json_safe_analysis['errors'] = [float(e) for e in analysis['errors']]
+                    json_safe_analysis['points'] = [int(p) for p in analysis['points']]
+                    json_safe_analysis['target_points'] = [(float(x), float(y)) for x, y in analysis['target_points']]
+                    json_safe_analysis['gaze_points'] = [(float(x), float(y)) for x, y in analysis['gaze_points']]
+                    json_safe_analysis['quadrant_means'] = {k: float(v) if v is not None else None for k, v in analysis['quadrant_means'].items()}
+                    
+                    json.dump(json_safe_analysis, f, indent=2)
+            except Exception as e:
+                logger.error(f"Error saving analysis to JSON: {str(e)}")
+        
+        plt.show()
+    except Exception as e:
+        logger.error(f"Error visualizing calibration data: {str(e)}")
+        logger.error(traceback.format_exc())
 
 def get_calibration_quality(analysis):
     """
