@@ -1,3 +1,5 @@
-# GazeAnalytics Replit Application
+# Core README
+
+## GazeAnalytics Replit Application
 
 https://replit.com/@morningstar6ix/GazeAnalytics?s=app
