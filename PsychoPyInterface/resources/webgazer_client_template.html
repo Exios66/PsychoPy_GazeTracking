@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebGazer Client</title>
+    <script src="https://webgazer.cs.brown.edu/webgazer.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+            text-align: center;
+        }
+        .status.connected {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        .status.disconnected {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+        .status.calibrating {
+            background-color: #fff3cd;
+            color: #856404;
+        }
+        .controls {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin: 20px 0;
+        }
+        button {
+            padding: 10px 15px;
+            border: none;
+            border-radius: 4px;
+            background-color: #007bff;
+            color: white;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background-color 0.2s;
+        }
+        button:hover {
+            background-color: #0069d9;
+        }
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        .calibration-points {
+            position: relative;
+            width: 100%;
+            height: 400px;
+            margin: 20px 0;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            background-color: #f9f9f9;
+        }
+        .point {
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            background-color: red;
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            cursor: pointer;
+        }
+        .point.active {
+            background-color: green;
+        }
+        .point.completed {
+            background-color: #007bff;
+        }
+        .gaze-dot {
+            position: fixed;
+            width: 10px;
+            height: 10px;
+            background-color: red;
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+            z-index: 1000;
+        }
+        .log {
+            height: 100px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            padding: 10px;
+            margin-top: 20px;
+            font-family: monospace;
+            font-size: 14px;
+            background-color: #f9f9f9;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>WebGazer Client</h1>
+        
+        <div id="status" class="status disconnected">
+            Disconnected from PsychoPy
+        </div>
+        
+        <div class="controls">
+            <button id="connectBtn">Connect to PsychoPy</button>
+            <button id="calibrateBtn" disabled>Start Calibration</button>
+            <button id="startTrackingBtn" disabled>Start Tracking</button>
+            <button id="stopTrackingBtn" disabled>Stop Tracking</button>
+        </div>
+        
+        <div id="calibrationArea" class="calibration-points" style="display: none;">
+            <!-- Calibration points will be added here dynamically -->
+        </div>
+        
+        <div id="log" class="log"></div>
+    </div>
+    
+    <div id="gazeDot" class="gaze-dot" style="display: none;"></div>
+    
+    <script>
+        // WebSocket connection
+        let socket = null;
+        let isConnected = false;
+        let isCalibrating = false;
+        let isTracking = false;
+        let calibrationPoints = [];
+        let currentPointIndex = -1;
+        
+        // DOM elements
+        const statusEl = document.getElementById('status');
+        const connectBtn = document.getElementById('connectBtn');
+        const calibrateBtn = document.getElementById('calibrateBtn');
+        const startTrackingBtn = document.getElementById('startTrackingBtn');
+        const stopTrackingBtn = document.getElementById('stopTrackingBtn');
+        const calibrationArea = document.getElementById('calibrationArea');
+        const logEl = document.getElementById('log');
+        const gazeDot = document.getElementById('gazeDot');
+        
+        // Initialize WebGazer
+        function initWebGazer() {
+            webgazer.setGazeListener(function(data, elapsedTime) {
+                if (data == null) return;
+                
+                // Update gaze dot position
+                if (isTracking) {
+                    gazeDot.style.display = 'block';
+                    gazeDot.style.left = data.x + 'px';
+                    gazeDot.style.top = data.y + 'px';
+                    
+                    // Send gaze data to PsychoPy
+                    if (isConnected) {
+                        const gazeData = {
+                            type: 'gaze_data',
+                            timestamp: Date.now(),
+                            x: data.x / window.innerWidth,
+                            y: data.y / window.innerHeight,
+                            elapsedTime: elapsedTime
+                        };
+                        socket.send(JSON.stringify(gazeData));
+                    }
+                } else {
+                    gazeDot.style.display = 'none';
+                }
+            }).begin();
+            
+            // Hide video feed and face overlay
+            webgazer.showVideoPreview(false).showPredictionPoints(false);
+            
+            log('WebGazer initialized');
+        }
+        
+        // Connect to PsychoPy
+        function connectToPsychoPy() {
+            const serverUrl = 'ws://localhost:8887';
+            socket = new WebSocket(serverUrl);
+            
+            socket.onopen = function() {
+                isConnected = true;
+                statusEl.textContent = 'Connected to PsychoPy';
+                statusEl.className = 'status connected';
+                connectBtn.disabled = true;
+                calibrateBtn.disabled = false;
+                log('Connected to PsychoPy');
+                
+                // Send connection message
+                socket.send(JSON.stringify({
+                    type: 'client_connected',
+                    client_type: 'webgazer',
+                    timestamp: Date.now()
+                }));
+            };
+            
+            socket.onclose = function() {
+                isConnected = false;
+                statusEl.textContent = 'Disconnected from PsychoPy';
+                statusEl.className = 'status disconnected';
+                connectBtn.disabled = false;
+                calibrateBtn.disabled = true;
+                startTrackingBtn.disabled = true;
+                stopTrackingBtn.disabled = true;
+                log('Disconnected from PsychoPy');
+            };
+            
+            socket.onerror = function(error) {
+                log('WebSocket error: ' + error.message);
+            };
+            
+            socket.onmessage = function(event) {
+                const message = JSON.parse(event.data);
+                log('Received: ' + message.type);
+                
+                switch (message.type) {
+                    case 'start_calibration':
+                        startCalibration(message.points || 9);
+                        break;
+                    case 'start_tracking':
+                        startTracking();
+                        break;
+                    case 'stop_tracking':
+                        stopTracking();
+                        break;
+                    case 'ping':
+                        socket.send(JSON.stringify({
+                            type: 'pong',
+                            timestamp: Date.now()
+                        }));
+                        break;
+                }
+            };
+        }
+        
+        // Start calibration
+        function startCalibration(numPoints = 9) {
+            if (!isConnected) return;
+            
+            isCalibrating = true;
+            statusEl.textContent = 'Calibrating...';
+            statusEl.className = 'status calibrating';
+            calibrateBtn.disabled = true;
+            startTrackingBtn.disabled = true;
+            stopTrackingBtn.disabled = true;
+            calibrationArea.style.display = 'block';
+            
+            // Clear previous calibration points
+            calibrationArea.innerHTML = '';
+            calibrationPoints = [];
+            
+            // Create calibration points
+            const positions = [];
+            if (numPoints === 9) {
+                // 3x3 grid
+                positions.push({x: '10%', y: '10%'});
+                positions.push({x: '50%', y: '10%'});
+                positions.push({x: '90%', y: '10%'});
+                positions.push({x: '10%', y: '50%'});
+                positions.push({x: '50%', y: '50%'});
+                positions.push({x: '90%', y: '50%'});
+                positions.push({x: '10%', y: '90%'});
+                positions.push({x: '50%', y: '90%'});
+                positions.push({x: '90%', y: '90%'});
+            } else if (numPoints === 5) {
+                // 5 points
+                positions.push({x: '50%', y: '50%'});
+                positions.push({x: '10%', y: '10%'});
+                positions.push({x: '90%', y: '10%'});
+                positions.push({x: '10%', y: '90%'});
+                positions.push({x: '90%', y: '90%'});
+            } else {
+                // Default to corners and center
+                positions.push({x: '50%', y: '50%'});
+                positions.push({x: '10%', y: '10%'});
+                positions.push({x: '90%', y: '10%'});
+                positions.push({x: '10%', y: '90%'});
+                positions.push({x: '90%', y: '90%'});
+            }
+            
+            // Create DOM elements for calibration points
+            positions.forEach((pos, index) => {
+                const point = document.createElement('div');
+                point.className = 'point';
+                point.style.left = pos.x;
+                point.style.top = pos.y;
+                point.dataset.index = index;
+                
+                point.addEventListener('click', function() {
+                    calibratePoint(index);
+                });
+                
+                calibrationArea.appendChild(point);
+                calibrationPoints.push(point);
+            });
+            
+            // Start with the first point
+            currentPointIndex = 0;
+            calibrationPoints[currentPointIndex].classList.add('active');
+            
+            log('Calibration started with ' + numPoints + ' points');
+        }
+        
+        // Calibrate a specific point
+        function calibratePoint(index) {
+            if (!isCalibrating) return;
+            
+            // Mark current point as completed
+            calibrationPoints[currentPointIndex].classList.remove('active');
+            calibrationPoints[currentPointIndex].classList.add('completed');
+            
+            // Move to next point or finish calibration
+            currentPointIndex++;
+            if (currentPointIndex < calibrationPoints.length) {
+                calibrationPoints[currentPointIndex].classList.add('active');
+            } else {
+                finishCalibration();
+            }
+        }
+        
+        // Finish calibration
+        function finishCalibration() {
+            isCalibrating = false;
+            statusEl.textContent = 'Calibration completed';
+            statusEl.className = 'status connected';
+            calibrateBtn.disabled = false;
+            startTrackingBtn.disabled = false;
+            stopTrackingBtn.disabled = true;
+            calibrationArea.style.display = 'none';
+            
+            // Notify PsychoPy that calibration is complete
+            if (isConnected) {
+                socket.send(JSON.stringify({
+                    type: 'calibration_complete',
+                    timestamp: Date.now()
+                }));
+            }
+            
+            log('Calibration completed');
+        }
+        
+        // Start tracking
+        function startTracking() {
+            if (!isConnected) return;
+            
+            isTracking = true;
+            statusEl.textContent = 'Tracking gaze';
+            statusEl.className = 'status connected';
+            calibrateBtn.disabled = true;
+            startTrackingBtn.disabled = true;
+            stopTrackingBtn.disabled = false;
+            gazeDot.style.display = 'block';
+            
+            // Notify PsychoPy that tracking has started
+            if (isConnected) {
+                socket.send(JSON.stringify({
+                    type: 'tracking_started',
+                    timestamp: Date.now()
+                }));
+            }
+            
+            log('Tracking started');
+        }
+        
+        // Stop tracking
+        function stopTracking() {
+            isTracking = false;
+            statusEl.textContent = 'Connected to PsychoPy';
+            statusEl.className = 'status connected';
+            calibrateBtn.disabled = false;
+            startTrackingBtn.disabled = false;
+            stopTrackingBtn.disabled = true;
+            gazeDot.style.display = 'none';
+            
+            // Notify PsychoPy that tracking has stopped
+            if (isConnected) {
+                socket.send(JSON.stringify({
+                    type: 'tracking_stopped',
+                    timestamp: Date.now()
+                }));
+            }
+            
+            log('Tracking stopped');
+        }
+        
+        // Log messages
+        function log(message) {
+            const timestamp = new Date().toLocaleTimeString();
+            const logMessage = `[${timestamp}] ${message}`;
+            logEl.innerHTML += logMessage + '<br>';
+            logEl.scrollTop = logEl.scrollHeight;
+        }
+        
+        // Event listeners
+        connectBtn.addEventListener('click', connectToPsychoPy);
+        calibrateBtn.addEventListener('click', () => startCalibration(9));
+        startTrackingBtn.addEventListener('click', startTracking);
+        stopTrackingBtn.addEventListener('click', stopTracking);
+        
+        // Initialize WebGazer when the page loads
+        window.addEventListener('load', initWebGazer);
+    </script>
+</body>
+</html> 
