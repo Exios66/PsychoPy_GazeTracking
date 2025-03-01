@@ -65,12 +65,14 @@ python -m PsychoPyInterface.experiments.webgazer_demo
 To create your own experiments, use the provided modules as templates:
 
 1. Import the necessary modules:
+
    ```python
    from PsychoPyInterface.utils import EyeTracker
    from PsychoPyInterface.config import DEFAULT_EXPERIMENT_SETTINGS
    ```
 
 2. Create your experiment class:
+
    ```python
    class MyExperiment:
        def __init__(self, settings=None):
@@ -89,6 +91,7 @@ To create your own experiments, use the provided modules as templates:
    ```
 
 3. Implement the experiment logic:
+
    ```python
    def run(self):
        # Set up experiment
@@ -110,11 +113,13 @@ To create your own experiments, use the provided modules as templates:
 To use WebGazer.js for web-based eye tracking:
 
 1. Import the WebGazer bridge:
+
    ```python
    from PsychoPyInterface.utils import WebGazerBridge
    ```
 
 2. Initialize the bridge:
+
    ```python
    bridge = WebGazerBridge(
        session_id="my_session",
@@ -124,6 +129,7 @@ To use WebGazer.js for web-based eye tracking:
    ```
 
 3. Start the bridge and open the client:
+
    ```python
    bridge.start()
    client_html = bridge.save_client_html()
@@ -131,6 +137,7 @@ To use WebGazer.js for web-based eye tracking:
    ```
 
 4. Register a callback for gaze data:
+
    ```python
    def on_gaze_data(data):
        print(f"Gaze at: {data['x']}, {data['y']}")
@@ -162,4 +169,4 @@ plt.show()
 
 ## License
 
-This package is released under the MIT License. 
+This package is released under the MIT License.
