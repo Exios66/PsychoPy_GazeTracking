@@ -26,6 +26,27 @@ This repository contains a gaze tracking application built with PsychoPy and a w
 - Node.js 20.0+
 - npm 9.0+
 
+### Quick Setup
+For a quick setup, you can use the provided installation scripts:
+
+#### On macOS/Linux:
+```bash
+./install_dev.sh
+```
+
+#### On Windows:
+```bash
+install_dev.bat
+```
+
+These scripts will:
+1. Create a virtual environment
+2. Install all dependencies
+3. Install the package in development mode
+4. Run the tests to verify the installation
+
+### Manual Setup
+
 ### Python Environment Setup
 
 1. Create a virtual environment:
@@ -105,6 +126,12 @@ If you've installed the package using `pip install -e .`, you can also use the c
 
 ```bash
 psychopy-gaze-launcher
+```
+
+Alternatively, you can use the provided convenience script:
+
+```bash
+./run_psychopy.py
 ```
 
 #### Running Experiments Directly
@@ -193,6 +220,10 @@ To add new tests:
 1. Create a new file in the `tests/` directory with the naming pattern `test_*.py`
 2. Write test cases using the `unittest` framework
 3. Run the tests to verify your implementation
+
+## Contributing
+
+We welcome contributions to the PsychoPy Gaze Tracking project! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for details on how to contribute.
 
 ## License
 
