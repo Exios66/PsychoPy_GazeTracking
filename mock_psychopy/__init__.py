@@ -94,6 +94,8 @@ logging = _MockModule(
 hardware = _MockModule(
     keyboard=_MockModule(
         Keyboard=_MockClass,
+        KeyPress=_MockClass,
+        getKeys=lambda *args, **kwargs: [],
     ),
 )
 
@@ -101,4 +103,20 @@ hardware = _MockModule(
 gui = _MockModule(
     Dlg=_MockClass,
     DlgFromDict=_MockClass,
+)
+
+# Create mock pylink module for EyeLink
+pylink = _MockModule(
+    EyeLink=lambda: _MockModule(
+        isConnected=lambda: True,
+        sendCommand=lambda cmd: None,
+        openDataFile=lambda filename: None,
+        setLinkEventFilter=lambda filter_str: None,
+        setLinkSampleFilter=lambda filter_str: None,
+        startRecording=lambda a, b, c, d: None,
+        stopRecording=lambda: None,
+        close=lambda: None,
+        doTrackerSetup=lambda: None,
+    ),
+    CALIBRATION_STATUS_SUCCESS=1,
 ) 

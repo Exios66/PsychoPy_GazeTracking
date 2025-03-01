@@ -48,6 +48,7 @@ flake8 .
 ### Reporting Bugs
 
 If you find a bug, please create an issue with the following information:
+
 - A clear, descriptive title
 - Steps to reproduce the bug
 - Expected behavior
@@ -58,6 +59,7 @@ If you find a bug, please create an issue with the following information:
 ### Suggesting Enhancements
 
 If you have an idea for an enhancement, please create an issue with the following information:
+
 - A clear, descriptive title
 - A detailed description of the enhancement
 - Any relevant examples or mockups
@@ -71,4 +73,4 @@ If you have an idea for an enhancement, please create an issue with the followin
 
 ## License
 
-By contributing to this project, you agree that your contributions will be licensed under the project's MIT License. 
+By contributing to this project, you agree that your contributions will be licensed under the project's MIT License.

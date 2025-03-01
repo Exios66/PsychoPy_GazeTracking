@@ -27,19 +27,23 @@ This repository contains a gaze tracking application built with PsychoPy and a w
 - npm 9.0+
 
 ### Quick Setup
+
 For a quick setup, you can use the provided installation scripts:
 
-#### On macOS/Linux:
+#### On macOS/Linux
+
 ```bash
 ./install_dev.sh
 ```
 
-#### On Windows:
+#### On Windows
+
 ```bash
 install_dev.bat
 ```
 
 These scripts will:
+
 1. Create a virtual environment
 2. Install all dependencies
 3. Install the package in development mode
