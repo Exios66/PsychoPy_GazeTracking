@@ -4,22 +4,13 @@ This module provides mock implementations of PsychoPy classes and functions
 to allow code to be developed and tested without requiring the full PsychoPy package.
 """
 
-# Create mock submodules
-class _MockModule:
-    def __init__(self, **kwargs):
-        for key, value in kwargs.items():
-            setattr(self, key, value)
+# Import the mock psychopy package
+from . import psychopy
 
-# Create mock classes
-class _MockClass:
-    def __init__(self, *args, **kwargs):
-        pass
-    
-    def __call__(self, *args, **kwargs):
-        return self
-    
-    def __getattr__(self, name):
-        return _MockClass()
+# Import tobii_research as a proper module
+from . import tobii_research
+
+from ._mock_base import _MockModule, _MockClass
 
 # Create core module
 core = _MockModule(
