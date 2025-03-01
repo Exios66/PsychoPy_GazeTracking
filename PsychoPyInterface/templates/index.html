@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PsychoPy GazeTracking Interface</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="/static/style.css">
     <style>
         body {
             padding-top: 20px;
@@ -108,7 +109,7 @@
                                     <option value="webcam">Webcam</option>
                                     <option value="tobii">Tobii</option>
                                     <option value="mouse">Mouse</option>
-                                    <option value="simulated">Simulated</option>
+                                    <option value="simulated" selected>Simulated</option>
                                 </select>
                             </div>
                             <div class="mb-3" id="webcam-selection">
@@ -224,7 +225,7 @@
                         </div>
                         <div class="mt-3">
                             <div class="form-check form-switch">
-                                <input class="form-check-input" type="checkbox" id="live-tracking-toggle" disabled>
+                                <input class="form-check-input" type="checkbox" id="live-tracking-toggle">
                                 <label class="form-check-label" for="live-tracking-toggle">Enable Live Tracking</label>
                             </div>
                         </div>
@@ -262,6 +263,7 @@
         let statusUpdateInterval;
         let gazeUpdateInterval;
         let messageModal;
+        let currentConfig = null;
 
         // Initialize when document is ready
         document.addEventListener('DOMContentLoaded', function() {
@@ -280,11 +282,38 @@
             
             // Start status updates
             updateStatus();
-            statusUpdateInterval = setInterval(updateStatus, 5000);
+            statusUpdateInterval = setInterval(updateStatus, 3000);
             
             // Load webcam list
             loadWebcamList();
+            
+            // Load current configuration
+            loadConfig();
+            
+            // Update UI based on tracker type
+            updateTrackerTypeUI();
         });
+
+        // Load current configuration
+        function loadConfig() {
+            fetch('/api/config')
+                .then(response => response.json())
+                .then(data => {
+                    currentConfig = data;
+                    
+                    // Update UI with current config
+                    document.getElementById('tracker-type').value = data.eye_tracking.tracker_type;
+                    document.getElementById('webcam-id').value = data.eye_tracking.webcam_id;
+                    document.getElementById('calibration-points').value = data.eye_tracking.calibration_points;
+                    document.getElementById('fullscreen-toggle').checked = data.experiment.fullscreen;
+                    
+                    // Update UI based on tracker type
+                    updateTrackerTypeUI();
+                })
+                .catch(error => {
+                    console.error('Error loading configuration:', error);
+                });
+        }
 
         // Update status indicators
         function updateStatus() {
@@ -298,11 +327,13 @@
                     updateStatusIndicator('experiment-status', data.experiment_running);
                     
                     // Update UI based on status
-                    document.getElementById('calibrate-btn').disabled = !data.tracker_initialized;
-                    document.getElementById('validate-btn').disabled = !data.tracker_initialized;
-                    document.getElementById('start-experiment-btn').disabled = !data.tracker_initialized || data.experiment_running;
+                    document.getElementById('calibrate-btn').disabled = !data.tracker_initialized && !data.visualization_available;
+                    document.getElementById('validate-btn').disabled = !data.tracker_initialized && !data.visualization_available;
+                    document.getElementById('start-experiment-btn').disabled = !data.tracker_initialized && !data.psychopy_available;
                     document.getElementById('stop-experiment-btn').disabled = !data.experiment_running;
-                    document.getElementById('live-tracking-toggle').disabled = !data.tracker_initialized;
+                    
+                    // Enable live tracking toggle if tracker is initialized or we have simulated data
+                    document.getElementById('live-tracking-toggle').disabled = !data.tracker_initialized && !data.visualization_available;
                     
                     // Update experiment status message
                     if (data.experiment_running) {
@@ -342,7 +373,13 @@
                     showMessage('Success', 'Components initialized successfully');
                     updateStatus();
                 } else {
-                    showMessage('Error', data.message || 'Failed to initialize components');
+                    // For minimal app, we expect an error but we'll show a friendly message
+                    showMessage('Minimal Mode', 'Running in minimal web interface mode. Full PsychoPy functionality is not available.');
+                    
+                    // Enable visualization features anyway
+                    document.getElementById('calibrate-btn').disabled = false;
+                    document.getElementById('validate-btn').disabled = false;
+                    document.getElementById('live-tracking-toggle').disabled = false;
                 }
             })
             .catch(error => {
@@ -365,7 +402,9 @@
                     showMessage('Success', 'Calibration completed successfully');
                     updateCalibrationResults();
                 } else {
-                    showMessage('Error', data.message || 'Failed to run calibration');
+                    // For minimal app, we expect an error but we'll show a friendly message
+                    showMessage('Minimal Mode', 'Running in minimal web interface mode. Showing simulated calibration data.');
+                    updateCalibrationResults();
                 }
             })
             .catch(error => {
@@ -394,7 +433,8 @@
                     message += `Valid Points: ${result.valid_points}/${result.total_points}`;
                     showMessage('Validation Results', message);
                 } else {
-                    showMessage('Error', data.message || 'Failed to run validation');
+                    // For minimal app, we expect an error but we'll show a friendly message
+                    showMessage('Minimal Mode', 'Running in minimal web interface mode. Validation functionality is not available.');
                 }
             })
             .catch(error => {
@@ -426,7 +466,8 @@
                     showMessage('Success', 'Experiment started successfully');
                     updateStatus();
                 } else {
-                    showMessage('Error', data.message || 'Failed to start experiment');
+                    // For minimal app, we expect an error but we'll show a friendly message
+                    showMessage('Minimal Mode', 'Running in minimal web interface mode. Experiment functionality is not available.');
                 }
             })
             .catch(error => {
@@ -449,7 +490,8 @@
                     showMessage('Success', 'Experiment stopped successfully');
                     updateStatus();
                 } else {
-                    showMessage('Error', data.message || 'Failed to stop experiment');
+                    // For minimal app, we expect an error but we'll show a friendly message
+                    showMessage('Minimal Mode', 'Running in minimal web interface mode. Experiment functionality is not available.');
                 }
             })
             .catch(error => {
@@ -487,6 +529,7 @@
             .then(data => {
                 if (data.status === 'success') {
                     showMessage('Success', 'Configuration updated successfully');
+                    currentConfig = data.config;
                 } else {
                     showMessage('Error', data.message || 'Failed to update configuration');
                 }

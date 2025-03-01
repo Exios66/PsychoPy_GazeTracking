@@ -1,234 +1,110 @@
-# PsychoPy Gaze Tracking
+# PsychoPy GazeTracking Interface
 
-## Overview
+A comprehensive interface for eye tracking experiments using PsychoPy, with support for various eye tracking methods including webcam-based tracking, Tobii eye trackers, and simulated data for testing.
 
-This repository contains a gaze tracking application built with PsychoPy and a web-based analytics dashboard built with React.
+## Features
 
-## Repository Structure
+- Web-based interface for controlling eye tracking experiments
+- Support for multiple eye tracking methods (webcam, Tobii, simulated)
+- Calibration and validation procedures
+- Live gaze visualization
+- Experiment control and data collection
+- Comprehensive logging and error handling
 
-- `GazeAnalytics/`: Web application for visualizing and analyzing gaze data
-  - `client/`: React frontend
-  - `server/`: Backend server
-  - `shared/`: Shared code between client and server
-- `PsychoPyInterface/`: Interface for the standalone PsychoPy application
-  - `experiments/`: Sample eye-tracking experiments
-  - `utils/`: Utility modules for eye tracking and analysis
-  - `data/`: Data storage directory
-  - `resources/`: Resource files
-- `requirements.txt`: Python dependencies
-- `package.json`: Node.js dependencies
+## Installation
 
-## Setup Instructions
-
-### Prerequisites
-
-- Python 3.9+
-- Node.js 20.0+
-- npm 9.0+
-
-### Quick Setup
-
-For a quick setup, you can use the provided installation scripts:
-
-#### On macOS/Linux
-
-```bash
-./install_dev.sh
-```
-
-#### On Windows
-
-```bash
-install_dev.bat
-```
-
-These scripts will:
-
-1. Create a virtual environment
-2. Install all dependencies
-3. Install the package in development mode
-4. Run the tests to verify the installation
-
-### Manual Setup
-
-### Python Environment Setup
-
-1. Create a virtual environment:
-
-   ```bash
-   python -m venv .venv
-   source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+1. Clone this repository:
+   ```
+   git clone https://github.com/yourusername/PsychoPy_GazeTracking.git
+   cd PsychoPy_GazeTracking
    ```
 
-2. Install the core Python dependencies:
-
-   ```bash
-   pip install -r requirements.txt
+2. Create a virtual environment (recommended):
+   ```
+   python -m venv venv
+   source venv/bin/activate  # On Windows: venv\Scripts\activate
    ```
 
-3. Optional: Install additional dependencies based on your needs:
-   - For GUI development: `pip install wxPython`
-   - For improved timing: `pip install psychtoolbox`
-   - For video playback: `pip install ffpyplayer`
-   - For audio processing: `pip install soundfile`
-   - For database access: `pip install psycopg2-binary`
-   - For eye tracking: `pip install tobii-research pylink`
-
-4. Install the package in development mode:
-
-   ```bash
-   pip install -e .
+3. Install the required dependencies:
    ```
-
-   This will install the package in development mode, allowing you to make changes to the code without reinstalling.
-
-   Alternatively, you can install the package with specific extras:
-
-   ```bash
-   pip install -e ".[dev,web]"  # Install with development and web extras
-   ```
-
-### Node.js Setup
-
-1. Install Node.js dependencies:
-
-   ```bash
-   cd GazeAnalytics
-   npm install
-   ```
-
-2. Start the development server:
-
-   ```bash
-   npm run dev
+   pip install flask flask-cors psychopy numpy matplotlib opencv-python
    ```
 
 ## Running the Application
 
-### Web Dashboard
+There are two ways to run the application:
 
-```bash
-cd GazeAnalytics
-npm run dev
+### 1. Minimal Web Interface (No PsychoPy Required)
+
+This mode provides a web interface with simulated data, useful for development and testing:
+
+```
+python minimal_app.py
 ```
 
-### PsychoPy Interface
+The web interface will be available at http://127.0.0.1:5000 (or another port if 5000 is not available).
 
-The PsychoPy Interface provides tools for creating and running eye-tracking experiments using the standalone PsychoPy application.
+### 2. Full Application (Requires PsychoPy)
 
-#### Using the Launcher
+This mode provides the complete functionality with PsychoPy integration:
 
-The easiest way to use the interface is through the launcher:
-
-```bash
-python -m PsychoPyInterface.launcher
+```
+python run_app.py
 ```
 
-This will open a GUI where you can select an experiment to run.
+You can also specify additional options:
 
-If you've installed the package using `pip install -e .`, you can also use the console script:
-
-```bash
-psychopy-gaze-launcher
+```
+python run_app.py --tracker simulated --port 5001 --no-browser
 ```
 
-Alternatively, you can use the provided convenience script:
-
-```bash
-./run_psychopy.py
-```
-
-#### Running Experiments Directly
-
-You can also run experiments directly:
-
-```bash
-python -m PsychoPyInterface.experiments.visual_search
-python -m PsychoPyInterface.experiments.webgazer_demo
-```
-
-#### Available Experiments
-
-1. **Visual Search**: A visual search task where participants search for a target among distractors while their eye movements are tracked.
-2. **WebGazer Demo**: A demonstration of WebGazer.js integration for web-based eye tracking.
-
-#### Creating Your Own Experiments
-
-See the [PsychoPyInterface README](PsychoPyInterface/README.md) for detailed instructions on creating your own experiments.
-
-## Features
-
-### Eye Tracking Methods
-
-- **Native PsychoPy Eye Tracking**: Using PsychoPy's iohub interface
-- **WebGazer.js Integration**: Web-based eye tracking using a webcam
-- **External Eye Trackers**: Support for external eye trackers via PsychoPy
-
-### Data Analysis
-
-- **Fixation Detection**: Identify fixations in gaze data
-- **Saccade Detection**: Identify saccades in gaze data
-- **Heatmap Generation**: Create heatmaps of gaze patterns
-- **Statistical Analysis**: Calculate metrics like fixation duration, saccade amplitude, etc.
-
-### Visualization
-
-- **Real-time Visualization**: View gaze data in real-time
-- **Post-hoc Analysis**: Analyze gaze data after the experiment
-- **Interactive Dashboards**: Explore gaze data through interactive visualizations
+Available options:
+- `--tracker`: Specify the tracker type (webcam, tobii, mouse, simulated)
+- `--port`: Specify the port for the web interface
+- `--host`: Specify the host for the web interface
+- `--no-browser`: Do not open the browser automatically
+- `--install-deps`: Install missing dependencies
 
 ## Troubleshooting
 
-### Common Issues
+### Import Errors
 
-- If you encounter issues with PsychoPy dependencies, try installing the standalone PsychoPy application from [psychopy.org](https://www.psychopy.org/download.html).
-- For macOS users, some dependencies may require additional system libraries. Consider using Homebrew to install them:
+If you encounter import errors, make sure all dependencies are installed:
 
-  ```bash
-  brew install hdf5 libusb portaudio
-  ```
+```
+pip install flask flask-cors psychopy numpy matplotlib opencv-python
+```
 
-- For WebGazer.js integration, ensure your browser has permission to access the webcam.
+### PsychoPy Issues
 
-## Testing
+If you encounter issues with PsychoPy, try reinstalling it:
 
-### Running Tests
+```
+pip uninstall psychopy
+pip install psychopy
+```
 
-The project includes a comprehensive test suite to ensure all components work correctly. To run the tests:
+### Webcam Access
 
-1. Activate your virtual environment:
+For webcam-based tracking, make sure your browser has permission to access the webcam.
 
-   ```bash
-   source venv/bin/activate  # On Windows: venv\Scripts\activate
-   ```
+## Directory Structure
 
-2. Run the test suite:
-
-   ```bash
-   ./tests/run_tests.py
-   ```
-
-### Test Structure
-
-- `tests/`: Contains all test files
-  - `test_imports.py`: Verifies that all required packages can be imported
-  - `test_utils.py`: Tests for utility functions
-  - `test_visualization.py`: Tests for visualization functions
-  - `test_webgazer.py`: Tests for WebGazer integration
-  - `run_tests.py`: Script to run all tests
-
-### Adding New Tests
-
-To add new tests:
-
-1. Create a new file in the `tests/` directory with the naming pattern `test_*.py`
-2. Write test cases using the `unittest` framework
-3. Run the tests to verify your implementation
-
-## Contributing
-
-We welcome contributions to the PsychoPy Gaze Tracking project! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for details on how to contribute.
+- `PsychoPyInterface/`: Main package directory
+  - `Scripts/`: Core scripts for eye tracking functionality
+  - `experiments/`: Experiment implementations
+  - `utils/`: Utility modules
+  - `templates/`: HTML templates for the web interface
+  - `static/`: Static files (CSS, JavaScript, images)
+- `minimal_app.py`: Minimal web interface launcher
+- `run_app.py`: Full application launcher
 
 ## License
 
-MIT
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+## Acknowledgements
+
+- PsychoPy: https://www.psychopy.org/
+- Flask: https://flask.palletsprojects.com/
+- OpenCV: https://opencv.org/
