@@ -5,111 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>WebGazer Client</title>
     <script src="https://webgazer.cs.brown.edu/webgazer.js"></script>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            margin: 0;
-            padding: 20px;
-            background-color: #f5f5f5;
-        }
-        .container {
-            max-width: 800px;
-            margin: 0 auto;
-            background-color: white;
-            padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-        }
-        h1 {
-            color: #333;
-            text-align: center;
-        }
-        .status {
-            padding: 10px;
-            margin: 10px 0;
-            border-radius: 4px;
-            text-align: center;
-        }
-        .status.connected {
-            background-color: #d4edda;
-            color: #155724;
-        }
-        .status.disconnected {
-            background-color: #f8d7da;
-            color: #721c24;
-        }
-        .status.calibrating {
-            background-color: #fff3cd;
-            color: #856404;
-        }
-        .controls {
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-            margin: 20px 0;
-        }
-        button {
-            padding: 10px 15px;
-            border: none;
-            border-radius: 4px;
-            background-color: #007bff;
-            color: white;
-            cursor: pointer;
-            font-size: 16px;
-            transition: background-color 0.2s;
-        }
-        button:hover {
-            background-color: #0069d9;
-        }
-        button:disabled {
-            background-color: #cccccc;
-            cursor: not-allowed;
-        }
-        .calibration-points {
-            position: relative;
-            width: 100%;
-            height: 400px;
-            margin: 20px 0;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            background-color: #f9f9f9;
-        }
-        .point {
-            position: absolute;
-            width: 20px;
-            height: 20px;
-            background-color: red;
-            border-radius: 50%;
-            transform: translate(-50%, -50%);
-            cursor: pointer;
-        }
-        .point.active {
-            background-color: green;
-        }
-        .point.completed {
-            background-color: #007bff;
-        }
-        .gaze-dot {
-            position: fixed;
-            width: 10px;
-            height: 10px;
-            background-color: red;
-            border-radius: 50%;
-            transform: translate(-50%, -50%);
-            pointer-events: none;
-            z-index: 1000;
-        }
-        .log {
-            height: 100px;
-            overflow-y: auto;
-            border: 1px solid #ddd;
-            padding: 10px;
-            margin-top: 20px;
-            font-family: monospace;
-            font-size: 14px;
-            background-color: #f9f9f9;
-        }
-    </style>
+    <link rel="stylesheet" href="webgazer_client.css">
 </head>
 <body>
     <div class="container">
@@ -126,14 +22,14 @@
             <button id="stopTrackingBtn" disabled>Stop Tracking</button>
         </div>
         
-        <div id="calibrationArea" class="calibration-points" style="display: none;">
+        <div id="calibrationArea" class="calibration-points hidden">
             <!-- Calibration points will be added here dynamically -->
         </div>
         
         <div id="log" class="log"></div>
     </div>
     
-    <div id="gazeDot" class="gaze-dot" style="display: none;"></div>
+    <div id="gazeDot" class="gaze-dot hidden"></div>
     
     <script>
         // WebSocket connection
@@ -161,7 +57,7 @@
                 
                 // Update gaze dot position
                 if (isTracking) {
-                    gazeDot.style.display = 'block';
+                    gazeDot.classList.remove('hidden');
                     gazeDot.style.left = data.x + 'px';
                     gazeDot.style.top = data.y + 'px';
                     
@@ -177,7 +73,7 @@
                         socket.send(JSON.stringify(gazeData));
                     }
                 } else {
-                    gazeDot.style.display = 'none';
+                    gazeDot.classList.add('hidden');
                 }
             }).begin();
             
@@ -257,7 +153,7 @@
             calibrateBtn.disabled = true;
             startTrackingBtn.disabled = true;
             stopTrackingBtn.disabled = true;
-            calibrationArea.style.display = 'block';
+            calibrationArea.classList.remove('hidden');
             
             // Clear previous calibration points
             calibrationArea.innerHTML = '';
@@ -340,7 +236,7 @@
             calibrateBtn.disabled = false;
             startTrackingBtn.disabled = false;
             stopTrackingBtn.disabled = true;
-            calibrationArea.style.display = 'none';
+            calibrationArea.classList.add('hidden');
             
             // Notify PsychoPy that calibration is complete
             if (isConnected) {
@@ -363,7 +259,7 @@
             calibrateBtn.disabled = true;
             startTrackingBtn.disabled = true;
             stopTrackingBtn.disabled = false;
-            gazeDot.style.display = 'block';
+            gazeDot.classList.remove('hidden');
             
             // Notify PsychoPy that tracking has started
             if (isConnected) {
@@ -384,7 +280,7 @@
             calibrateBtn.disabled = false;
             startTrackingBtn.disabled = false;
             stopTrackingBtn.disabled = true;
-            gazeDot.style.display = 'none';
+            gazeDot.classList.add('hidden');
             
             // Notify PsychoPy that tracking has stopped
             if (isConnected) {
