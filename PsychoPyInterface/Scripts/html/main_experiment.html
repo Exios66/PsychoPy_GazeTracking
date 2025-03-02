@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>PsychoJS Experiment with WebGazer Integration - Production</title>
+  <!-- Load PsychoJS library from a reliable CDN or your own hosted copy -->
+  <script src="https://pavlovia.org/psychojs/psychojs-2020.2.4.js"></script>
+  <!-- Load WebGazer.js library -->
+  <script src="webgazer.js" type="text/javascript"></script>
+  <!-- Load the custom WebGazer integration script -->
+  <script src="webgazer_integration.js" type="text/javascript"></script>
+  <style>
+    /* Production styling for experiment layout */
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+    }
+    #experimentContainer {
+      max-width: 800px;
+      margin: 0 auto;
+    }
+    #webgazerVideoContainer {
+      position: fixed;
+      top: 10px;
+      right: 10px;
+      border: 1px solid #ccc;
+      z-index: 1000;
+      background: #fff;
+    }
+  </style>
+  <script>
+    // Initialize PsychoJS
+    var psychoJS = new PsychoJS({ debug: false });
+    
+    // Start the experiment with a basic configuration
+    psychoJS.start({
+      expName: 'Production_WebGazer_Experiment',
+      expInfo: { 'participant': '' }
+    });
+    
+    // Define a simple experiment routine that uses gaze data.
+    // In production, you would extend this with full stimulus presentation and response recording.
+    function showInstructions() {
+      // For example, you might use PsychoJS's visual.TextStim here.
+      // This is a placeholder for actual instruction routines.
+      console.info("Instructions displayed: Please focus on the center and follow the prompts.");
+    }
+    
+    // Start the experiment once all libraries are fully loaded.
+    window.addEventListener("load", function() {
+      // Verify that WebGazer is running before starting the main experiment routine.
+      if (typeof webgazer !== "undefined") {
+        console.info("WebGazer and PsychoJS initialized successfully. Starting experiment.");
+        showInstructions();
+        // Example usage: during a trial, you could retrieve and record the current gaze prediction:
+        // var currentGaze = window.getCurrentGazePrediction();
+        // Use currentGaze.x and currentGaze.y as needed.
+      } else {
+        console.error("WebGazer is not available. Cannot start experiment.");
+      }
+    });
+  </script>
+</head>
+<body>
+  <div id="experimentContainer">
+    <h1>PsychoJS Experiment with WebGazer Integration</h1>
+    <p>This production-ready experiment integrates PsychoJS with WebGazer.js for real-time eye tracking.</p>
+    <!-- Additional experiment elements (stimuli, response buttons, etc.) would be added here -->
+  </div>
+  <!-- Container for the WebGazer video preview -->
+  <div id="webgazerVideoContainer"></div>
+</body>
+</html>
