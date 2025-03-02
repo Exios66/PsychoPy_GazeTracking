@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>WebGazer Production Integration</title>
+  <!-- Load the production WebGazer.js library (downloaded into the Scripts folder) -->
+  <script src="webgazer.js" type="text/javascript"></script>
+  <!-- Load the custom WebGazer integration script -->
+  <script src="webgazer_integration.js" type="text/javascript"></script>
+  <style>
+    /* Production styling for the video preview container */
+    #webgazerVideoContainer {
+      position: fixed;
+      top: 10px;
+      right: 10px;
+      border: 1px solid #ccc;
+      z-index: 1000;
+      background: #fff;
+    }
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+    }
+  </style>
+</head>
+<body>
+  <h1>WebGazer Production Integration</h1>
+  <p>This page integrates WebGazer.js for live eye tracking.</p>
+  <!-- Container for WebGazer's webcam video preview and prediction points -->
+  <div id="webgazerVideoContainer"></div>
+</body>
+</html>
