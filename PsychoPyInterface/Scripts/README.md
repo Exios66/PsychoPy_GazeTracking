@@ -1,4 +1,5 @@
-    bash
+## Script Repository Map
+
     Scripts/
     ├── python/
     │   ├── calibration.py
